@@ -63,12 +63,12 @@ p{margin:0 0 10px}
 .enemy.targetable{cursor:pointer;border-color:var(--accent);box-shadow:0 0 0 2px rgba(233,101,58,.25)}
 .enemy.targetable:hover{transform:translateY(-2px)}
 .enemy.dead{opacity:.25;pointer-events:none}
-.enemy .name{font-weight:700;font-size:15px;display:flex;justify-content:space-between;align-items:center}
+.enemy .name{font-weight:700;font-size:15px;display:flex;justify-content:space-between;align-items:flex-start;min-height:44px}
 .enemy .intent{font-size:12px;color:var(--muted);margin-top:4px;min-height:18px}
 .enemy .intent b{color:var(--warn)}
 .enemy .status{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
 .enemy .status span{font-size:11px;padding:1px 6px;border-radius:999px;background:var(--surface-3);border:1px solid var(--line-strong)}
-.enemy .envtag{position:absolute;top:-10px;right:10px;font-size:11px;padding:1px 8px;border-radius:999px;color:#111;font-weight:700}
+.enemy .envtag{position:absolute;top:-10px;left:10px;font-size:11px;padding:1px 8px;border-radius:999px;color:#111;font-weight:700}
 .enemy.hit{animation:shake .3s}
 @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
 .dmgpop{position:fixed;transform:translateX(-50%);font-weight:800;font-size:18px;color:var(--bad);pointer-events:none;animation:pop .8s forwards}
@@ -168,8 +168,10 @@ table.tbl td,table.tbl th{border-bottom:1px solid var(--line);padding:4px 6px;te
 .item .nm{position:absolute;top:2px;left:4px;right:4px;font-size:10px;line-height:1.1}
 .item .st{position:absolute;top:13px;left:4px;right:4px;font-size:9px}
 .item.multi .art{top:0}
-.enemy .name .espr{width:44px;height:44px;margin:-6px -2px -6px 0}
-.enemy.boss .name .espr{width:56px;height:56px}
+.enemy .name .espr{line-height:0;margin:-8px -4px 0 0}
+.enemy .name .espr .spr{width:48px;height:48px}
+.enemy.boss .name{min-height:52px}
+.enemy.boss .name .espr .spr{width:60px;height:60px}
 .hpbar .spr{width:30px;height:30px;margin-right:2px}
 .mini{position:relative;display:grid;gap:2px;background:var(--surface);padding:5px;border:1px solid var(--line);border-radius:10px;margin:0 auto 10px;width:max-content}
 .mini .cell{width:34px;height:34px;cursor:default}
@@ -180,7 +182,7 @@ table.tbl td,table.tbl th{border-bottom:1px solid var(--line);padding:4px 6px;te
 .title-art .spr.hero{width:84px;height:84px}
 .li .spr{width:26px;height:26px;margin-right:6px}
 .choices button .spr{width:28px;height:28px;margin-right:6px}
-@media (max-width:600px){.item .nm{display:none}.item .st{top:2px;left:3px;right:auto;background:rgba(0,0,0,.45);padding:0 3px;border-radius:3px;z-index:1}.item .art{top:3px;bottom:3px}.item .art .spr{width:calc(var(--cs) * .9);height:calc(var(--cs) * .9)}.enemy .name .espr{width:36px;height:36px}}
+@media (max-width:600px){.item .nm{display:none}.item .st{top:2px;left:3px;right:auto;background:rgba(0,0,0,.45);padding:0 3px;border-radius:3px;z-index:1}.item .art{top:3px;bottom:3px}.item .art .spr{width:calc(var(--cs) * .9);height:calc(var(--cs) * .9)}.enemy .name .espr .spr{width:38px;height:38px}}
 </style>
 </head>
 <body>
@@ -962,7 +964,198 @@ const ITEM_SPRITES = {
 '................'],
 };
 
-/*__ENEMY_SPRITES__*/
+const ENEMY_SPRITES = {
+  rat: [
+    '........................',
+    '..kk.........kk.........',
+    '.khhk.......khhk........',
+    '.kqhk.......khqk........',
+    '.kSSkkkkkkkkkSSk........',
+    '..kSSSSSSSSSSSk..knnk...',
+    '.kSSSSSSSSSSssk....knnk.',
+    'kSSrrkSSSssrrkssk...knk.',
+    'kSrrrkSSssssrrrkssk.knk.',
+    'kwSSSSSSSssssssssskk.knk',
+    '.kkSSSSSssssssssssk.knk.',
+    '...kqkSsssssssssssk.knk.',
+    '...kwksssssssssssssk.knk',
+    '....kssssssssssssskknnk.',
+    '....kdsssssssssssk.knnk.',
+    '....kddsssssssssk.knnk..',
+    '....kdddsssssssdk.......',
+    '.....kkddddddddk........',
+    '......kNkkkkkkNk........',
+    '......kNk....kNk........',
+    '......kkk....kkk........',
+    '........................',
+    '........................',
+    '........................',
+  ],
+  firebat: [
+    '........................',
+    '..o..................o..',
+    '..yk................ky..',
+    '.koyk..............kyok.',
+    '.kmoyk..kmk..kmk..kyomk.',
+    '.kmmoyk.kmmkkmmk.kyommk.',
+    'kmmmoykkkmmmmmmkkkyommmk',
+    'kmmmmmkmyymmmmyymkmmmmmk',
+    'kmmrmmkmmRRmmRRmmkmmrmmk',
+    'kmrrmmmkmmmmmmmmkmmmrrmk',
+    'kmrrmmmmkmmmmmmkmmmmrrmk',
+    'kkmrrmmmmkmmmmkmmmmrrmkk',
+    '.kkmrrmmmkmmmmkmmmrrmkk.',
+    '...kkmrmmkmmmmkmmrmkk...',
+    '.....kkmmkmmmmkmmkk.....',
+    '.......kkkmmmmkkk.......',
+    '..........kmmk..........',
+    '..........kmmk..........',
+    '..........kkkk..........',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+  ],
+  slime: [
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '.........kkkkkk.........',
+    '.......kkCCCCCCkk.......',
+    '......kCCCCCCCCCCk......',
+    '.....kwwCCccccCCCCk.....',
+    '....kwwwccccccccCCCk....',
+    '...kCwwcccccccccccCCk...',
+    '..kCccccccccccccccccCk..',
+    '..kccccccccccccccBccck..',
+    '.kcccccccccccccccBcccck.',
+    '.kcccccBcccccccccccccck.',
+    '.kccccBBcccccccccccccck.',
+    'kcccccccccccccccccccccck',
+    'kcccccccccccccccccccccck',
+    'kccccccccccccccBccccccck',
+    'kccccccccccccccBBcccccck',
+    'kcccccccccccccccccccccck',
+    '.keeeeeeeeeeeeeeeeeeeek.',
+    '.kkeeeeeeeeeeeeeeeeeekk.',
+    '..kkkkkkkkkkkkkkkkkkkk..',
+    '........................',
+  ],
+  wraith: [
+    '........................',
+    '.......kkkkkk...........',
+    '......kiiiiiik..........',
+    '.....kiiiiiiiik.........',
+    '....kiiiiiiiiiik........',
+    '....kiiiiiiiiiik...ii...',
+    '...kiiBBiiiBBiiik..iBi..',
+    '...kiiBBiiiBBiiik...i...',
+    '...kiiiiiiiiiiiik.......',
+    '..kiiiiibbbiiiiiik......',
+    '..kiiiiibbbiiiiiik...i..',
+    '..kiiiiiiiiiiiiiik..iBi.',
+    '..kbiiiiiiiiiiiibk...i..',
+    '.kbbiiiiiiiiiiiibbk.....',
+    '.kbbbiiiiiiiiiibbbk.....',
+    '.kbbbbiiiiiibbbbk.......',
+    '..kbbbbiiiibbbbk........',
+    '..kbbbk.kbbk.kbbbk......',
+    '..kbvk...kbk...kvbk.....',
+    '...kvk...kbk...kvk......',
+    '...kk.....kvk....kk.....',
+    '..........kk............',
+    '........................',
+    '........................',
+  ],
+  goblin: [
+    '........................',
+    '......kkkkkk............',
+    '....kkddddddkk..........',
+    '...kdddddddddk..........',
+    '..kddddddddddddk........',
+    '..kddddddddddddk........',
+    '.kkddddddddddddkk.......',
+    'kGkdggggggggggdkk.......',
+    'kGGkdgGGGGGGggdk........',
+    '.kGkgGkrGkrGkGgk........',
+    '..kkgGGGGGGGGGgk........',
+    '...kgGGkkkkkGGgk........',
+    '...kgGGkwwwkGGgk........',
+    '...kggGGkkkGGggk........',
+    '....kggGGGGGggk.........',
+    '.....kkgggggkkkgg.kkkkkk',
+    '...kkkkkeggekkkkkgknnnnk',
+    '..kdddddeggeddddk.knnnnk',
+    '..kdgggddeggeddgk.knnnnk',
+    '..kgGGgddeeddgGGgkknnnnk',
+    '...kkkkddgggddkkkkknnnnk',
+    '.....kggkkggk.....knnnnk',
+    '.....kggk.kggk....kkkkkk',
+    '.....knnk.knnk..........',
+  ],
+  beetle: [
+    '........................',
+    '........................',
+    '..........kddk..........',
+    '..........kddk..........',
+    '.........kddddk.........',
+    '.........kdssdk.........',
+    'kk.......kdssdk.......kk',
+    '.kpk....kkdssdkk....kpk.',
+    '..kpk..kdssssssdk..kpk..',
+    '...kkkkkdssssssdkkkkk...',
+    '...kxpPSSSSkkSSSSPpxk...',
+    '..kxPPSSSSSkkSSSSSPpxk..',
+    '.kxPPSSSSSSkkSSSSSSPpxk.',
+    'kxpPPSSSSSSkkSSSSSSSPpxk',
+    'kxpPSSdddSSkkSSdddSSPpxk',
+    'kxppSSdddSSkkSSdddSSppxk',
+    'kxppSSSdSSSkkSSSdSSSppxk',
+    'kxppSSSSSSSkkSSSSSSSppxk',
+    'kxppSSSSSSSkkSSSSSSSppxk',
+    '.kxppSSSSSSkkSSSSSSppxk.',
+    '..kxxppppppkkppppppxxk..',
+    '...kkkkkkkkkkkkkkkkkk...',
+    '.kpk.kpk........kpk.kpk.',
+    'kpk...kpk......kpk...kpk',
+  ],
+  boss: [
+    '................................',
+    '............kddddddk............',
+    '...........kdssssssdk...........',
+    '...........kdsSssSsdk...........',
+    '...........kdoossoodk...........',
+    '...........kdssssssdk...........',
+    '...........kkddssddkk...........',
+    '..kkkkkkk..kkddddddkk..kkkkkkk..',
+    '..kdddddkkddddddddddddkkdddddk..',
+    '..kdsSSsdkdsSSSSSSSSsdkdsSSsdk..',
+    '..kdsSSsdkdsSSSSSSSSsdkdsSSsdk..',
+    '..kdssssdkdssSSSSSSssdkdssssdk..',
+    '..kddddddkdssssSSssssdkddddddk..',
+    '.kkdsssdkkdsssSSSSsssdkkdsssdkk.',
+    '.kdsssdk..kdskkyykksdk..kdsssdk.',
+    '.kdsssdk..kdskyooyksdk..kdsssdk.',
+    '.kdsssdk..kdkyoRRoykdk..kdsssdk.',
+    '.kdsssdk..kdkyRRRRykdk..kdsssdk.',
+    '.kddsddk..kdkyoRRoykdk..kddsddk.',
+    '.kkdddkk..kdkyooooykdk..kkdddkk.',
+    '..kdsdk...kdkkyyyykkdk...kdsdk..',
+    '..kdddk...kdkkkkkkkkdk...kdddk..',
+    '..kkkkk...kdssssssssdk...kkkkk..',
+    '..........kdssssssssdk..........',
+    '..........kdssssssssdk..........',
+    '.........kddddddddddddk.........',
+    '.........kdssdk..kdssdk.........',
+    '.........kdssdk..kdssdk.........',
+    '.........kdssdk..kdssdk.........',
+    '.........kdssdk..kdssdk.........',
+    '........kdssssk..kssssdk........',
+    '........kkkkkkk..kkkkkkk........',
+  ],
+};
 const SpriteCache=new Map();
 function spriteSVG(rows, opts={}){
   const key=(opts.key||rows.join('|'))+(opts.stretch?'#s':'');
