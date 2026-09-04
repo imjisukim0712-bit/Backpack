@@ -1,0 +1,1823 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>VOLATILE v0.8 — 가방이 곧 무기다</title>
+<style>
+:root{
+  --bg:#151917; --surface:#1E2421; --surface-2:#252C28; --surface-3:#2C3430;
+  --ink:#E4E8E3; --muted:#98A39C; --line:#2E3733; --line-strong:#3E4944;
+  --accent:#E9653A; --accent-ink:#151917;
+  --heat:#E9653A; --cold:#5FA8E8; --wet:#3DB8A0; --press:#A98BE0;
+  --heat-bg:#3A231B; --cold-bg:#1B2B3A; --wet-bg:#17332E; --press-bg:#2A2238;
+  --ok:#5FBF87; --warn:#D9A83A; --bad:#E85A5A;
+  --cell:#1A1F1C; --cell-line:#3A433E; --cell-scorch:#3A2A22; --cell-soak:#1B3A3A; --cell-hole:#0A0C0B;
+  --cs: clamp(44px, min(11vw, 9.2vh), 104px);
+  --sh: clamp(200px, 32vh, 380px);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"IBM Plex Sans KR","Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;font-size:14px;line-height:1.5;word-break:keep-all;overflow-x:hidden}
+button{font:inherit;color:inherit;background:var(--surface-2);border:1px solid var(--line-strong);border-radius:8px;padding:8px 12px;cursor:pointer;min-height:40px}
+button:hover:not(:disabled){background:var(--surface-3)}
+button:disabled{opacity:.4;cursor:not-allowed}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+button.primary:hover:not(:disabled){filter:brightness(1.1);background:var(--accent)}
+button.small{padding:4px 8px;min-height:36px;font-size:12px}
+#btn-pred.on{background:var(--warn);color:#111;border-color:var(--warn)}
+.mono{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+.muted{color:var(--muted)}
+.hidden{display:none!important}
+.screen{min-height:100%;display:none;flex-direction:column}
+.screen.active{display:flex}
+.center{max-width:720px;margin:0 auto;padding:24px 16px;width:100%}
+h1,h2,h3{margin:0 0 8px;line-height:1.2}
+h1{font-size:clamp(36px,8vw,64px);letter-spacing:.04em;color:var(--accent)}
+h2{font-size:20px}
+h3{font-size:15px;color:var(--muted);font-weight:600;letter-spacing:.06em;text-transform:uppercase}
+p{margin:0 0 10px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.col{display:flex;flex-direction:column;gap:8px}
+.pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;border:1px solid var(--line-strong);background:var(--surface-2)}
+.c-heat{color:var(--heat)} .c-cold{color:var(--cold)} .c-wet{color:var(--wet)} .c-press{color:var(--press)}
+.b-heat{background:var(--heat)} .b-cold{background:var(--cold)} .b-wet{background:var(--wet)} .b-press{background:var(--press)}
+
+/* ===== battle layout ===== */
+#battle{padding:8px;padding-bottom:calc(8px + env(safe-area-inset-bottom));gap:8px}
+.topbar{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 12px}
+.hpbar{display:flex;align-items:center;gap:8px;min-width:160px}
+.bar{flex:1;height:10px;background:var(--surface-3);border-radius:5px;overflow:hidden;min-width:60px}
+.bar>i{display:block;height:100%;background:var(--ok);transition:width .3s}
+.envgauge{display:flex;gap:10px;align-items:center;font-size:12px}
+.envgauge .g{display:flex;align-items:center;gap:4px}
+.envgauge .g b{display:inline-block;min-width:18px;text-align:center;border-radius:4px;padding:0 4px;color:#111}
+.battle-main{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:8px;flex:1;align-content:start;align-items:start}
+@media (max-width:900px){.battle-main{grid-template-columns:1fr}}
+.left{display:flex;flex-direction:column;gap:8px;min-width:0}
+.right{display:flex;flex-direction:column;gap:8px;min-width:0}
+
+/* damage popup */
+.dmgpop{position:fixed;transform:translateX(-50%);font-weight:800;font-size:18px;color:var(--bad);pointer-events:none;animation:pop .8s forwards;text-shadow:0 1px 3px #000;z-index:46}
+@keyframes pop{0%{opacity:1;transform:translate(-50%,0)}100%{opacity:0;transform:translate(-50%,-30px)}}
+
+/* bag grid */
+.bagwrap{display:flex;flex-direction:column;align-items:center;gap:6px}
+.bag{position:relative;display:grid;gap:3px;background:var(--surface);padding:6px;border:1px solid var(--line);border-radius:12px;touch-action:manipulation;user-select:none}
+.cell{width:var(--cs);height:var(--cs);background:var(--cell);border:1px solid var(--cell-line);border-radius:6px;position:relative;cursor:pointer}
+.cell.scorched{background:repeating-linear-gradient(135deg,var(--cell-scorch) 0 4px,var(--cell) 4px 8px)}
+.cell.soaked{background:var(--cell-soak);border-color:var(--wet)}
+.cell.scorched.soaked{background:repeating-linear-gradient(135deg,var(--cell-scorch) 0 4px,var(--cell-soak) 4px 8px);border-color:var(--wet)}
+.cell.hole{background:var(--cell-hole);border-style:dashed;cursor:not-allowed}
+.cell.hole::after{content:"✕";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--line-strong);font-size:20px}
+.cell.acid{box-shadow:inset 0 0 0 2px var(--press)}
+.cell.can-drop{background:rgba(95,191,135,.18);border-color:var(--ok)}
+.cell.cant-drop{background:rgba(232,90,90,.18);border-color:var(--bad)}
+.cell.will-scorch{box-shadow:inset 0 0 0 3px var(--heat)}
+.cell.will-soak{box-shadow:inset 0 0 0 3px var(--wet)}
+.cell.will-hole{box-shadow:inset 0 0 0 3px var(--bad)}
+.cell.radius{background:rgba(233,101,58,.22)}
+.cell.target-ok{background:rgba(233,101,58,.3);border-color:var(--heat)}
+.item{position:absolute;border-radius:7px;border:2px solid var(--line-strong);background:var(--surface-2);display:flex;flex-direction:column;justify-content:space-between;padding:4px 5px;cursor:pointer;z-index:2;transition:box-shadow .15s;overflow:hidden;font-size:12px;line-height:1.2}
+.item:hover{box-shadow:0 0 0 2px var(--ink)}
+.item.selected{box-shadow:0 0 0 3px var(--accent);z-index:3}
+.item.will-change{outline:3px dashed var(--warn);outline-offset:-3px}
+.item.will-vanish{outline:3px dashed var(--bad);outline-offset:-3px}
+.item.ghost{opacity:.55;pointer-events:none;z-index:4;border-style:dashed}
+.item .nm{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item .st{font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item .tk{position:absolute;right:3px;bottom:2px;font-weight:800;font-size:13px;font-family:ui-monospace,monospace}
+.item .emit{position:absolute;left:4px;bottom:3px;font-size:10px;display:flex;gap:2px}
+.item .emit i{display:inline-block;width:8px;height:8px;border-radius:50%}
+.item .inner{position:absolute;left:3px;bottom:15px;right:3px;font-size:9px;background:rgba(0,0,0,.55);border-radius:4px;padding:1px 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:2px}
+.item.k-source{border-style:double;border-width:4px} .item.k-container{border-style:dashed} .item.k-tool{border-style:dotted}
+.item.k-catalyst{border-color:gold} .item.k-drop{border-color:var(--muted)}
+.item.cd{filter:saturate(.3)}
+.item.blocked{opacity:.75}
+
+/* action bar */
+.actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px}
+.ap{display:flex;gap:4px;margin-right:6px}
+.ap i{width:14px;height:14px;border-radius:50%;background:var(--accent);display:inline-block;border:1px solid var(--line-strong)}
+.ap i.used{background:var(--surface-3)}
+.hint{font-size:12px;color:var(--muted);text-align:center;min-height:18px;padding:0 8px}
+
+/* right panel */
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px;font-size:12px}
+.panel h3{margin-bottom:6px}
+.log{max-height:220px;overflow-y:auto;display:flex;flex-direction:column-reverse;gap:2px}
+.log div{padding:2px 4px;border-left:3px solid var(--line-strong);background:var(--surface-2);border-radius:3px}
+.log div.heat{border-color:var(--heat)} .log div.cold{border-color:var(--cold)} .log div.wet{border-color:var(--wet)} .log div.press{border-color:var(--press)}
+.log div.dmg{border-color:var(--bad)} .log div.turn{border-color:var(--warn);color:var(--warn);font-weight:700} .log div.ok{border-color:var(--ok)}
+.info .kv{display:grid;grid-template-columns:auto 1fr;gap:2px 10px}
+.info .kv b{color:var(--muted);font-weight:500}
+.states{display:flex;flex-direction:column;gap:3px;margin-top:6px}
+.states div{padding:3px 6px;border-radius:4px;background:var(--surface-2);border:1px solid var(--line)}
+.states div.cur{border-color:var(--accent)}
+@media (max-width:900px){.log{max-height:140px}}
+@media (max-width:600px){.item{padding:3px 4px}.enemy{min-width:120px;padding:8px 10px}.enemy .name{font-size:13px}}
+
+/* inventory list / camp */
+.list{display:flex;flex-direction:column;gap:6px}
+.li{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 10px;background:var(--surface-2);border:1px solid var(--line);border-radius:8px}
+.li.sel{border-color:var(--accent)}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px}
+.modal{background:var(--surface);border:1px solid var(--line-strong);border-radius:14px;padding:18px;max-width:560px;width:100%;max-height:90vh;overflow-y:auto}
+.choices{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.choices button{text-align:left;padding:10px 12px}
+.choices button b{display:block}
+.choices button small{color:var(--muted)}
+.legend{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;justify-content:center}
+.legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px;vertical-align:-1px}
+.legend .lh::before{background:var(--heat)} .legend .lc::before{background:var(--cold)} .legend .lw::before{background:var(--wet)} .legend .lp::before{background:var(--press)}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--surface-3);border:1px solid var(--line-strong);padding:8px 14px;border-radius:8px;z-index:60;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.show{opacity:1}
+table.tbl{border-collapse:collapse;width:100%;font-size:12px}
+table.tbl td,table.tbl th{border-bottom:1px solid var(--line);padding:4px 6px;text-align:left;vertical-align:top}
+
+/* sprites */
+.spr{display:inline-block;line-height:0;vertical-align:middle;width:24px;height:24px;flex:none}
+.spr svg{width:100%;height:100%;display:block;image-rendering:pixelated}
+.item .art{position:absolute;left:0;right:0;top:11px;bottom:8px;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.item .art .spr{width:calc(var(--cs) * .84);height:calc(var(--cs) * .84);max-width:100%;max-height:100%}
+.item .tk{font-size:clamp(13px, calc(var(--cs) * .2), 18px)}
+.item .art .spr.stretch{width:55%;height:100%}
+.item.i-divider .art{top:4px;bottom:4px}
+.item.i-leadbox .art .spr{width:calc(var(--cs) * 1.5);height:calc(var(--cs) * 1.5)}
+.item .nm{position:absolute;top:2px;left:4px;right:4px;font-size:10px;line-height:1.1}
+.item .st{position:absolute;top:13px;left:4px;right:4px;font-size:9px}
+.item.multi .art{top:0}
+.enemy .name .espr{line-height:0;margin:-8px -4px 0 0}
+.enemy .name .espr .spr{width:48px;height:48px}
+.enemy.boss .name{min-height:52px}
+.enemy.boss .name .espr .spr{width:60px;height:60px}
+.hpbar .spr{width:30px;height:30px;margin-right:2px}
+.mini{position:relative;display:grid;gap:2px;background:var(--surface);padding:5px;border:1px solid var(--line);border-radius:10px;margin:0 auto 10px;width:max-content}
+.mini .cell{width:34px;height:34px;cursor:default}
+.mini .mi{position:absolute;display:flex;align-items:center;justify-content:center;pointer-events:none;border:1px solid var(--line-strong);border-radius:5px;background:rgba(255,255,255,.03)}
+.mini .mi .spr{width:24px;height:24px}
+.title-art{display:flex;justify-content:center;align-items:flex-end;gap:10px;margin:18px 0 6px;flex-wrap:wrap}
+.title-art .spr{width:36px;height:36px}
+.title-art .spr.hero{width:84px;height:84px}
+.li .spr{width:26px;height:26px;margin-right:6px}
+.choices button .spr{width:28px;height:28px;margin-right:6px}
+@media (max-width:600px){.item .nm{display:none}.item .st{top:2px;left:3px;right:auto;background:rgba(0,0,0,.45);padding:0 3px;border-radius:3px;z-index:1}.item .art{top:3px;bottom:3px}.item .art .spr{width:calc(var(--cs) * .9);height:calc(var(--cs) * .9)}.enemy .name .espr .spr{width:38px;height:38px}}
+
+/* ===== run layout: bag on top, dungeon scene below ===== */
+#run{padding:8px;padding-bottom:calc(8px + env(safe-area-inset-bottom));gap:8px;align-items:center}
+#run>.topbar{width:100%;max-width:1560px}
+.run-main{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:10px;align-items:start;width:100%;max-width:1560px}
+.stage{max-width:1180px;margin:0 auto;width:100%}
+@media (max-width:900px){.run-main{grid-template-columns:1fr}}
+.stage{display:flex;flex-direction:column;gap:8px;min-width:0}
+.scene{position:relative;height:var(--sh);border-radius:12px;overflow:hidden;border:1px solid var(--line);background:#0e1210;user-select:none}
+.scene .wall{position:absolute;left:0;right:0;top:0;height:60%;background-size:calc(var(--sh)*.21) calc(var(--sh)*.21);background-repeat:repeat;image-rendering:pixelated}
+.scene .floor{position:absolute;left:0;right:0;bottom:0;height:40%;background-size:calc(var(--sh)*.21) calc(var(--sh)*.21);background-repeat:repeat;image-rendering:pixelated;box-shadow:inset 0 6px 12px rgba(0,0,0,.6)}
+.scene .tint{position:absolute;inset:0;pointer-events:none;mix-blend-mode:multiply}
+.scene.f1 .tint{background:linear-gradient(#7a6a55,#5a4a3a)} .scene.f2 .tint{background:linear-gradient(#6a7a9a,#40506a)} .scene.f3 .tint{background:linear-gradient(#8a5a4a,#5a3030)} .scene.f4 .tint{background:linear-gradient(#a0603a,#6a2a1a)}
+.scene::after{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 70%,rgba(0,0,0,0) 40%,rgba(0,0,0,.55) 100%)}
+.scene.f4::after{background:radial-gradient(ellipse at 50% 70%,rgba(233,101,58,.12) 0%,rgba(0,0,0,.6) 100%)}
+.scene .progress{position:absolute;top:8px;left:10px;display:flex;gap:5px;z-index:3;align-items:center}
+.scene .progress i{width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,.18);border:1px solid rgba(0,0,0,.6);display:block}
+.scene .progress i.done{background:var(--ok)} .scene .progress i.cur{background:var(--accent);box-shadow:0 0 6px var(--accent)}
+.scene .progress span{font-size:11px;color:#ddd;text-shadow:0 1px 2px #000;margin-left:4px}
+.scene .actor{position:absolute;bottom:12%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:3px;transition:left .7s ease-in-out,opacity .5s;z-index:2}
+.scene .actor .spr{width:calc(var(--sh)*.32);height:calc(var(--sh)*.32);filter:drop-shadow(0 8px 6px rgba(0,0,0,.65))}
+.scene .actor.player .spr{width:calc(var(--sh)*.34);height:calc(var(--sh)*.34)}
+.scene .actor.player.walk .spr{animation:bob .22s infinite alternate}
+@keyframes bob{from{transform:translateY(0) rotate(-2deg)}to{transform:translateY(-5px) rotate(2deg)}}
+.scene .actor.enemy{cursor:default}
+.scene .actor.enemy.boss .spr{width:calc(var(--sh)*.5);height:calc(var(--sh)*.5)}
+.scene .actor.enemy.targetable{cursor:pointer}
+.scene .actor.enemy.targetable .spr{filter:drop-shadow(0 8px 6px rgba(0,0,0,.65)) drop-shadow(0 0 7px var(--accent))}
+.scene .actor.enemy.targetable:hover .spr{transform:translateY(-4px)}
+.scene .actor.enemy.dead{opacity:0;pointer-events:none}
+.scene .actor.enemy.enter{left:115%!important}
+.scene .actor.lunge .spr{animation:lunge .4s ease-out}
+@keyframes lunge{0%{transform:translateX(0)}35%{transform:translateX(-46px)}100%{transform:translateX(0)}}
+.scene .actor.hurt .spr{animation:hurt .35s}
+@keyframes hurt{0%,100%{filter:drop-shadow(0 8px 6px rgba(0,0,0,.65))}50%{filter:brightness(4) saturate(0)}}
+.scene .actor.frozen .spr{filter:drop-shadow(0 8px 6px rgba(0,0,0,.65)) sepia(1) hue-rotate(170deg) saturate(3) brightness(1.2)}
+.scene .actor .ebar{width:calc(var(--sh)*.3);height:7px;background:rgba(0,0,0,.65);border-radius:4px;overflow:hidden;border:1px solid #000}
+.scene .actor .ebar i{display:block;height:100%;background:var(--bad);transition:width .3s}
+.scene .actor .lbl{font-size:clamp(11px, calc(var(--sh)*.055), 15px);font-weight:700;color:#fff;text-shadow:0 1px 2px #000,0 0 4px #000;white-space:nowrap}
+.scene .actor .intent{font-size:clamp(10px, calc(var(--sh)*.048), 13px);color:#ffd9a0;text-shadow:0 1px 2px #000;white-space:nowrap}
+.scene .actor .intent b{color:#ffb060}
+.scene .actor .stats{display:flex;gap:2px;flex-wrap:wrap;justify-content:center;max-width:120px}
+.scene .actor .stats span{font-size:9px;padding:0 5px;border-radius:999px;background:rgba(0,0,0,.7);border:1px solid rgba(255,255,255,.2);white-space:nowrap}
+.scene .actor .envtag{font-size:10px;padding:0 6px;border-radius:999px;color:#111;font-weight:700}
+.scene .obj{position:absolute;bottom:14%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;cursor:pointer;gap:4px;z-index:2;transition:opacity .4s}
+.scene .obj .art{display:flex;align-items:flex-end;gap:-4px;transition:transform .15s}
+.scene .obj .art .spr{width:calc(var(--sh)*.23);height:calc(var(--sh)*.23);filter:drop-shadow(0 6px 5px rgba(0,0,0,.6))}
+.scene .obj.sil .art .spr{filter:brightness(.1) drop-shadow(0 0 4px rgba(233,101,58,.7));width:calc(var(--sh)*.2);height:calc(var(--sh)*.2);margin:0 -6px}
+.scene .obj.sil.elite .art .spr{filter:brightness(.1) drop-shadow(0 0 6px #ff4040)}
+.scene .obj:hover .art{transform:translateY(-4px)}
+.scene .obj .lbl{font-size:clamp(11px, calc(var(--sh)*.055), 15px);font-weight:700;background:rgba(0,0,0,.65);padding:2px 8px;border-radius:999px;border:1px solid var(--accent);white-space:nowrap}
+.scene .obj.elite .lbl{border-color:#ff4040;color:#ffb0b0}
+.scene .obj .sub{font-size:9px;color:#ccc;text-shadow:0 1px 2px #000}
+.scene.walking .obj{opacity:0;pointer-events:none}
+#banner{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:4}
+#banner div{font-size:26px;font-weight:900;letter-spacing:.06em;color:#fff;text-shadow:0 2px 8px #000,0 0 14px var(--accent);animation:bannerIn 1.5s forwards}
+@keyframes bannerIn{0%{opacity:0;transform:scale(.7)}15%{opacity:1;transform:scale(1.05)}70%{opacity:1}100%{opacity:0;transform:translateY(-10px)}}
+.flying{position:fixed;pointer-events:none;z-index:45;transition:left .42s cubic-bezier(.3,.8,.6,1),top .42s cubic-bezier(.2,-.4,.7,1);transform:translate(-50%,-50%)}
+.flying .spr{width:38px;height:38px;animation:spin .42s linear}
+@keyframes spin{to{transform:rotate(360deg)}}
+.sheet{position:fixed;left:0;right:0;bottom:0;max-height:72vh;overflow-y:auto;background:var(--surface);border-top:2px solid var(--accent);border-radius:16px 16px 0 0;padding:14px 16px calc(16px + env(safe-area-inset-bottom));z-index:46;box-shadow:0 -10px 30px rgba(0,0,0,.6);animation:sheetIn .25s ease-out}
+@keyframes sheetIn{from{transform:translateY(30px);opacity:0}to{transform:translateY(0);opacity:1}}
+.sheet-in{max-width:760px;margin:0 auto}
+.sheet .card{background:var(--surface-2)}
+@media (max-width:600px){:root{--sh:180px}.scene .actor .stats{max-width:90px}}
+/* 큰 모니터: 글자·버튼·패널도 함께 키운다 */
+@media (min-width:1600px){body{font-size:15px}.item .nm{font-size:11px}.item .st{font-size:10px;top:15px}.item .tk{font-size:15px}button{min-height:44px;padding:10px 14px}button.small{min-height:38px;font-size:13px}.panel{font-size:13px}.hint{font-size:13px}.topbar{padding:10px 16px}.hpbar .spr{width:36px;height:36px}}
+@media (min-width:2200px){body{font-size:16px}.run-main{max-width:1800px;grid-template-columns:minmax(0,1fr) 360px}.stage{max-width:1360px}}
+</style>
+<style>
+/* ===== v0.6 단순화 UI ===== */
+.item .arr{position:absolute;width:0;height:0;border:5px solid transparent;pointer-events:none}
+.item .arr.up{top:-1px;left:50%;margin-left:-5px;border-bottom-color:#ffd86a;border-top:0}
+.item .arr.down{bottom:-1px;left:50%;margin-left:-5px;border-top-color:#ffd86a;border-bottom:0}
+.item .arr.left{left:-1px;top:50%;margin-top:-5px;border-right-color:#ffd86a;border-left:0}
+.item .arr.right{right:-1px;top:50%;margin-top:-5px;border-left-color:#ffd86a;border-right:0}
+.item .num.down{color:#8f9aa0;text-shadow:0 1px 2px #000}
+.item .upmark{position:absolute;left:4px;bottom:3px;font-size:10px;color:var(--ok);font-weight:800;text-shadow:0 1px 2px #000}
+.cell.locked{background:repeating-linear-gradient(45deg,#2a1f3a 0 6px,#1a1420 6px 12px);border-color:var(--press)}
+.cell.locked::after{content:"✕";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--press);font-size:18px}
+.c-bad{color:var(--bad)}
+.iteminfo{display:flex;gap:10px;align-items:center;background:var(--surface);border:1px solid var(--accent);border-radius:10px;padding:8px 12px;font-size:13px;width:100%;max-width:560px;line-height:1.4}
+.iteminfo:empty{display:none}
+.iteminfo .spr{width:44px;height:44px;flex:none}
+.iteminfo .body{flex:1;min-width:0}
+.iteminfo .ttl{font-weight:700;font-size:14px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.iteminfo .badge{font-size:10px;padding:0 6px;border-radius:999px;background:var(--surface-3);border:1px solid var(--line-strong);font-weight:500}
+.iteminfo .desc{color:var(--muted)}
+.iteminfo .syn{color:#ffd86a}
+.iteminfo button{flex:none}
+.bagwrap{gap:8px}
+.run-main.one{grid-template-columns:1fr;max-width:1200px}
+.stage{max-width:1200px}
+.energy{display:flex;align-items:center;gap:4px;font-size:12px}
+.energy i{width:14px;height:14px;border-radius:50%;background:var(--warn);border:1px solid #000;display:inline-block}
+.energy i.used{background:var(--surface-3)}
+.energy .blk{margin-left:8px;color:var(--cold);font-weight:700}
+.item .nm{top:3px;left:5px;right:22px;font-size:10px;color:#ddd}
+.item .art{top:12px;bottom:10px}
+.item .cost{position:absolute;top:2px;right:4px;font-size:9px;color:var(--warn);letter-spacing:-1px}
+.item .num{position:absolute;right:4px;bottom:2px;font-size:clamp(14px, calc(var(--cs)*.24), 22px);font-weight:900;text-shadow:0 1px 2px #000,0 0 4px #000;font-family:ui-monospace,monospace}
+.n-dmg{color:#ff8a6a} .n-block{color:#7cc4ff} .n-heal{color:#7fe0a0} .n-aura{color:#ffd86a} .n-energy{color:#ffd86a}
+.item .num.up{color:#ffd86a;text-shadow:0 0 6px #ffb020,0 1px 2px #000}
+.item.t-passive{border-style:dashed;border-color:#8a7a50}
+.item.ready{border-color:var(--warn);box-shadow:0 0 0 1px rgba(217,168,58,.4)}
+.item.used{opacity:.4;filter:saturate(.3)}
+.item.boosted{box-shadow:0 0 0 3px #ffd86a inset}
+.item.booster{box-shadow:0 0 0 3px #ffb020}
+.item.selected{box-shadow:0 0 0 3px var(--accent);z-index:3}
+.icard{display:flex;align-items:center;gap:10px;text-align:left}
+.icard small{color:var(--muted)}
+.icard b.n-dmg,.icard b.n-block,.icard b.n-heal{font-family:ui-monospace,monospace}
+.actions{justify-content:flex-end;gap:8px}
+.log-strip{flex:1;min-width:0;font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:1px}
+.log-strip div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.log-strip div:last-child{color:var(--ink)}
+.dmgpop.fx-block{color:#7cc4ff} .dmgpop.fx-heal{color:#7fe0a0}
+@media (max-width:600px){.item .nm{display:none}.item .art{top:6px;bottom:6px}.item .cost{top:1px}.log-strip{flex-basis:100%;order:-1}}
+</style>
+</head>
+<body>
+<section id="title" class="screen active">
+  <div class="center" style="text-align:center;padding-top:8vh">
+    <div class="muted mono" style="letter-spacing:.14em">INVENTORY ROGUELIKE · PROTOTYPE v0.8</div>
+    <h1>VOLATILE</h1>
+    <p style="font-size:16px;margin-bottom:20px">가방이 곧 무기다</p>
+    <p class="muted" style="max-width:520px;margin:0 auto 24px">연금술사 모험가는 검 대신 가방을 든다.<br>좁은 가방 안에서 붙일 것과 떼어 놓을 것을 정하고, 클릭해서 쓴다.</p>
+    <div class="title-art" id="title-art"></div>
+    <div class="row" style="justify-content:center"><button class="primary" onclick="G.newRun()">새 런 시작</button><button onclick="G.showHelp()">규칙 (5줄)</button></div>
+  </div>
+</section>
+<section id="run" class="screen">
+  <div class="topbar">
+    <div class="hpbar"><span id="hero-spr"></span><b>HP</b><div class="bar"><i id="hp-fill"></i></div><span id="hp-text" class="mono"></span></div>
+    <div id="turn-text" class="mono muted"></div>
+    <div class="energy" id="energy"></div>
+    <div class="row"><button class="small" onclick="G.showHelp()">규칙</button><button class="small" onclick="G.giveUp()">런 포기</button></div>
+  </div>
+  <div class="run-main one">
+    <div class="stage">
+      <div class="hint" id="hint"></div>
+      <div class="bagwrap"><div class="bag" id="bag"></div><div class="iteminfo" id="iteminfo"></div></div>
+      <div class="scene f1" id="scene"><div class="wall"></div><div class="floor"></div><div class="tint"></div><div class="progress" id="progress"></div><div id="actors"></div><div id="banner"></div></div>
+      <div class="actions" id="actionbar">
+        <div class="log-strip" id="log"></div>
+        <button class="small" id="btn-rot" onclick="G.rotateSel()">회전 (R)</button>
+        <button class="small" id="btn-discard" onclick="G.discardSel()">버리기</button>
+        <button class="small" id="btn-cancel" onclick="G.cancelSel()">선택 해제</button>
+        <button class="primary" id="btn-end" onclick="G.endTurn()">턴 종료 (E)</button>
+      </div>
+    </div>
+  </div>
+</section>
+<div id="sheet-root"></div>
+<div id="pop-layer" style="position:fixed;inset:0;pointer-events:none;z-index:40"></div>
+<div id="modal-root"></div>
+<div class="toast" id="toast"></div>
+<script>
+/* =====================================================================
+   SPRITES — 픽셀 아트를 문자열로 저장하고 런타임에 SVG로 렌더한다 (외부 파일 없음)
+   문자 → 색: PALETTE. '.'은 투명. 스프라이트 키는 `아이템id:상태id`.
+   ===================================================================== */
+const PALETTE={k:'#1a1410',h:'#4a2e14',n:'#8b5a2b',N:'#c98f5a',t:'#e8d8b0',w:'#f4f1ea',S:'#a8b1ab',s:'#6b7570',d:'#3a433e',m:'#7a2a1a',r:'#c8451d',R:'#e9653a',o:'#f0a830',y:'#f5d76e',v:'#1b3a5a',b:'#2f7fc4',B:'#8fd0f5',i:'#d8f0ff',e:'#2f6b4a',g:'#5fbf87',G:'#a7e3b8',c:'#3db8a0',C:'#9fe6d3',x:'#4a3070',p:'#7a57b8',P:'#b9a0e6',q:'#e07aa0'};
+const PLAYER_SPRITE = [
+'........................',
+'........kkkkkkkk........',
+'.......khhnnnnhhk.......',
+'......khnBBkBBnhk.......',
+'....kkkhnkkkkknhkkk.....',
+'...khhhhhhhhhhhhhhhk....',
+'....kkkkkttttkkkkkk.....',
+'........kttttttk........',
+'........ktkttktk........',
+'........kttttttk........',
+'.......kkrrrrrrkk.......',
+'.....kknkrrrrrrknkk.....',
+'....knnnknNNNNknnnnk....',
+'...khnnnkNNNNNNknnnhk...',
+'...khnnkNNNNNNNNknnhk...',
+'...khnnkNkBkgkRkknnhk...',
+'...khnnkNkkkkkkkknnhk...',
+'....kkkkNNNNNNNNkkkk....',
+'.......kNNNNNNNNk.......',
+'.......kNNNkkNNNk.......',
+'.......khhk..khhk.......',
+'.......khhk..khhk.......',
+'.......kkkk..kkkk.......',
+'........................'];
+const ITEM_SPRITES = {
+// ---------- 횃불 ----------
+'torch:lit': [
+'................',
+'.......o........',
+'......oRo.......',
+'.....oRyRo......',
+'.....RRyyR......',
+'....oRyyyRo.....',
+'....RRyyyRR.....',
+'....kRRRRRk.....',
+'.....kNNNk......',
+'.....kNnnk......',
+'......knnk......',
+'......knnk......',
+'......knnk......',
+'......khhk......',
+'......khhk......',
+'.......kk.......'],
+'torch:out': [
+'................',
+'........s.......',
+'.......s........',
+'........s.......',
+'.......ss.......',
+'......kdddk.....',
+'.....kdsddk.....',
+'.....kddddk.....',
+'.....kkkkk......',
+'.....kNnnk......',
+'......knnk......',
+'......knnk......',
+'......knnk......',
+'......khhk......',
+'......khhk......',
+'.......kk.......'],
+// ---------- 얼음주머니 ----------
+'ice:ice': [
+'................',
+'.......kk.......',
+'......kNNk......',
+'....kkkNNkkk....',
+'...kiiwiiBBBk...',
+'...kiwiiiBBbk...',
+'...kiiiiBBbbk...',
+'...kiiiBBBbbk...',
+'...kiiBBBbbbk...',
+'...kiBBBbbbvk...',
+'...kBBBbbbvvk...',
+'...kBBbbbvvvk...',
+'...kBbbbvvvvk...',
+'....kkkkkkkk....',
+'................',
+'................'],
+'ice:water': [
+'................',
+'.......kk.......',
+'......kNNk......',
+'.....kkNNkk.....',
+'....kBBBBBbk....',
+'...kBiwBBbbbk...',
+'...kBwBBbbbbk...',
+'...kBBBbbbbbk...',
+'...kBBbbbbbvk...',
+'...kbbbbbbvvk...',
+'...kbbbbbvvvk...',
+'....kbbbvvvk....',
+'.....kbvvvk.....',
+'......kkkk......',
+'................',
+'................'],
+'ice:steam': [
+'................',
+'................',
+'......SSS.......',
+'....SSwwwSS.....',
+'...SwwwwwwwS....',
+'..SwwiwwwwwwS...',
+'..SwwwwwwwPPS...',
+'...SwwwwPPPS....',
+'....SSPPPSS.....',
+'......SSS.......',
+'....SS...SS.....',
+'...SwS...SwS....',
+'....S.....S.....',
+'................',
+'................',
+'................'],
+// ---------- 기름병 ----------
+'oil:cold': [
+'................',
+'......kkkk......',
+'......khhk......',
+'......kNNk......',
+'.....kkNNkk.....',
+'....kttNNttk....',
+'....kNoooNNk....',
+'....kooooonk....',
+'....koooonnk....',
+'....koooonnk....',
+'....koonnnnk....',
+'....konnnnhk....',
+'....knnnnhhk....',
+'.....kkkkkk.....',
+'................',
+'................'],
+'oil:warm': [
+'................',
+'......kkkk......',
+'....R.khhk.R....',
+'...R..kNNk..R...',
+'....R.kNNk.R....',
+'....kttNNttk....',
+'....kNyyoNNk....',
+'....kyoooonk....',
+'....kooooonk....',
+'....kooooRnk....',
+'....kooRRRnk....',
+'....koRRRRmk....',
+'....kRRRRmmk....',
+'.....kkkkkk.....',
+'................',
+'................'],
+'oil:lit': [
+'.......o........',
+'......oyo.......',
+'.....oRyRo......',
+'.....RRyRR......',
+'......RRR.......',
+'....kttRRttk....',
+'....kNyyoNNk....',
+'....kyoooRnk....',
+'....koooRRnk....',
+'....kooRRRmk....',
+'....koRRRmmk....',
+'....kRRRmmmk....',
+'....kRRmmmmk....',
+'.....kkkkkk.....',
+'................',
+'................'],
+// ---------- 화약 봉지 ----------
+'powder:dry': [
+'................',
+'.........R......',
+'........Ry......',
+'.......kk.......',
+'.....kkNNkk.....',
+'....kttNNttk....',
+'...ktttttttNk...',
+'...kttdkdttNk...',
+'...ktdkkkdtNk...',
+'...kttdkdtNNk...',
+'...kttttttNNk...',
+'...kttttNNNNk...',
+'....kttNNNNk....',
+'.....kkkkkk.....',
+'................',
+'................'],
+'powder:wet': [
+'................',
+'................',
+'.........s......',
+'.......kk.......',
+'.....kkNNkk.....',
+'....kNNNnnnk....',
+'...kNNNNnnnnk...',
+'...kNBdkdnnnk...',
+'...kNdkkkdnnk...',
+'...kNndkdBnnk...',
+'...kNnnnnnnnk...',
+'...knnnBnnnhk...',
+'....knnnnhhk....',
+'.....kkkkkk.....',
+'................',
+'................'],
+// ---------- 물주머니 ----------
+'water:water': [
+'................',
+'.......kkk......',
+'......khhhk.....',
+'......kNNNk.....',
+'.....kkNNNkk....',
+'....kNNNnnnnk...',
+'...kNNNBnnnnhk..',
+'...kNNBbBnnnhk..',
+'...kNNbbbnnnhk..',
+'...kNnnbnnnhhk..',
+'...kNnnnnnnhhk..',
+'...knnnnnnhhhk..',
+'....knnnnhhhk...',
+'.....kkkkkkk....',
+'................',
+'................'],
+'water:ice': [
+'................',
+'.......kkk......',
+'......kSSSk.....',
+'......kiiik.....',
+'.....kkiiikk....',
+'....kiiiBBBBk...',
+'...kiiwiBBBBbk..',
+'...kiwiiBBBbbk..',
+'...kiiiBBBbbbk..',
+'...kiiBBBbbbbk..',
+'...kiBBBbbbbvk..',
+'...kBBBbbbbvvk..',
+'....kBBbbbvvk...',
+'.....kkkkkkk....',
+'................',
+'................'],
+'water:steam': [
+'................',
+'................',
+'......SSS.......',
+'....SSwwwSS.....',
+'...SwwwwwwwS....',
+'..SwwiwwwwwwS...',
+'..SwwwwwwwPPS...',
+'...SwwwwPPPS....',
+'....SSPPPSS.....',
+'......SSS.......',
+'....SS...SS.....',
+'...SwS...SwS....',
+'....S.....S.....',
+'................',
+'................',
+'................'],
+// ---------- 소금 ----------
+'salt:salt': [
+'................',
+'................',
+'................',
+'.......kk.......',
+'......kwwk......',
+'.....kwwwSk.....',
+'....kwwwwwSk....',
+'....kwwiwwSk....',
+'...kwwwwwwSSk...',
+'...kwiwwwwSSk...',
+'..kwwwwwwSSSSk..',
+'..kwwwwwSSSSSk..',
+'.kkkkkkkkkkkkkk.',
+'................',
+'................',
+'................'],
+// ---------- 붕대 ----------
+'bandage:dry': [
+'................',
+'................',
+'....kkkkkkkk....',
+'...kwwwwwwwwk...',
+'..kwwSwwwwwwSk..',
+'..kwwwwSwwwwSk..',
+'..kSwwwwwSwwSk..',
+'..kwSwwwwwSwSk..',
+'..kwwwSwwwwwSk..',
+'..kwwwwwSwwSSk..',
+'..kSSwwwwwSSSk..',
+'...kSSSSSSSSk...',
+'....kkkkkkkk....',
+'................',
+'................',
+'................'],
+'bandage:wet': [
+'................',
+'................',
+'....kkkkkkkk....',
+'...kBiiiiiiBk...',
+'..kiiBiiiiiBBk..',
+'..kiiiiBiiiBBk..',
+'..kBiiiiiBiBBk..',
+'..kiBiiiiiBBBk..',
+'..kiiiBiiiiBBk..',
+'..kiiiiiBiBBbk..',
+'..kBBiiiiiBbbk..',
+'...kBBBBbbbbk...',
+'....kkkkkkkk....',
+'................',
+'................',
+'................'],
+// ---------- 유리병 ----------
+'jar:jar': [
+'................',
+'.....kkkkkk.....',
+'.....kNNNNk.....',
+'.....knnnnk.....',
+'....kkkkkkkk....',
+'...kiBBBBBBik...',
+'...kiwBBBBBBk...',
+'...kiwBBBBBbk...',
+'...kiwBBBBBbk...',
+'...kiBBBBBbbk...',
+'...kiBBBBBbbk...',
+'...kiBBBBbbbk...',
+'...kBBBBbbbbk...',
+'....kkkkkkkk....',
+'................',
+'................'],
+// ---------- 납 상자 ----------
+'leadbox:box': [
+'................',
+'.kkkkkkkkkkkkkk.',
+'.kSSSSSSSSSSSsk.',
+'.kSkkkkkkkkkksk.',
+'.kSkssssssssksk.',
+'.kkkkkkkkkkkkkk.',
+'.ksssssskssssdk.',
+'.kswssssksswsdk.',
+'.kssssssksssddk.',
+'.kssssssksssddk.',
+'.ksssssdksssddk.',
+'.ksssssdkssdddk.',
+'.kswsssdkswdddk.',
+'.kdddddddddddkk.',
+'.kkkkkkkkkkkkkk.',
+'................'],
+// ---------- 칸막이 (세로 판자) ----------
+'divider:d': [
+'......kkkk......',
+'......kNNnk.....',
+'......kNnnk.....',
+'......kNnnk.....',
+'......kNhnk.....',
+'......kNnnk.....',
+'......kNnnk.....',
+'......kNnnk.....',
+'......kNnhk.....',
+'......kNnnk.....',
+'......kNnnk.....',
+'......kNnnk.....',
+'......kNhnk.....',
+'......kNnnk.....',
+'......knnnk.....',
+'......kkkkk.....'],
+// ---------- 부싯돌 ----------
+'flint:f': [
+'................',
+'........y.......',
+'.....y..o..y....',
+'......o.o.o.....',
+'.......ooo......',
+'....kkkkkkk.....',
+'...kSSSsssdk....',
+'..kSSsssssddk...',
+'..kSsssssdddk...',
+'..ksssssdddkk...',
+'..kssssdddkk....',
+'...kssdddkk.....',
+'....kkkkk.......',
+'................',
+'................',
+'................'],
+// ---------- 풀무 ----------
+'bellows:b': [
+'................',
+'................',
+'..kk............',
+'..kNkk..........',
+'..kNNNkk........',
+'.kkNtNNNkk......',
+'.knNtNtNNNkk....',
+'.knNtNtNtNNNkkkk',
+'.knNtNtNtNtNNsSk',
+'.knNtNtNtNNNkkkk',
+'.knNtNtNNNkk....',
+'.kkNtNNNkk......',
+'..kNNNkk........',
+'..kNkk..........',
+'..kk............',
+'................'],
+// ---------- 독버섯 ----------
+'mushroom:raw': [
+'................',
+'................',
+'......kkkk......',
+'....kkrrrrkk....',
+'...krrwrrrrrk...',
+'..krrwwrrrwrrk..',
+'..krrrrrrwwrrk..',
+'..kmrrrrrrrrmk..',
+'..kkmmmmmmmmkk..',
+'....kttttttk....',
+'.....ktttNk.....',
+'.....ktttNk.....',
+'.....kttNNk.....',
+'.....kkkkkk.....',
+'................',
+'................'],
+'mushroom:spore': [
+'..P..........P..',
+'.....P....P.....',
+'..P...kkkk...P..',
+'....kkxxxxkk....',
+'...kxxpxxxxxk...',
+'..kxxppxxxpxxk..',
+'.PkxxxxxxppxxkP.',
+'..kkxxxxxxxxkk..',
+'...kkkkkkkkkk...',
+'.P..kttttttk..P.',
+'.....ktttNk.....',
+'..P..ktttNk..P..',
+'.....kttNNk.....',
+'.....kkkkkk.....',
+'................',
+'................'],
+'mushroom:dried': [
+'................',
+'................',
+'................',
+'.....kkkkkk.....',
+'....knNnnNnk....',
+'...knnnnnnnnk...',
+'...khnnhnnnhk...',
+'...kkhhhhhhkk...',
+'.....kNNNNk.....',
+'.....kNNnk......',
+'......kNnk......',
+'......knnk......',
+'......kkkk......',
+'................',
+'................',
+'................'],
+// ---------- 박쥐 날개 ----------
+'batwing:w': [
+'................',
+'..k.............',
+'..kxk...........',
+'..kxxk..........',
+'..kxxxk.........',
+'..kxxxxkk.......',
+'..kpxxxxxkk.....',
+'..kppxxxxxxkk...',
+'...kppxxxxxxxk..',
+'...kpppxxxxxxk..',
+'....kppxxxxkk...',
+'.....kppxxk.....',
+'......kpxk......',
+'.......kk.......',
+'................',
+'................'],
+// ---------- 슬라임 젤리 ----------
+'jelly:jelly': [
+'................',
+'................',
+'................',
+'.....kkkkk......',
+'....kGGGggk.....',
+'...kGwGggggk....',
+'..kGwGgggggek...',
+'..kGGgggggeek...',
+'..kgggggBgeek...',
+'..kgggggggeek...',
+'..kggBgggeeek...',
+'..kgggggeeeek...',
+'...kgeeeeeek....',
+'....kkkkkkk.....',
+'................',
+'................'],
+'jelly:acid': [
+'................',
+'....G......G....',
+'..G...GGG.......',
+'.....GGyGG...G..',
+'....GGyyyGG.....',
+'..G.GyyyyyPG....',
+'....GyyyyPPG..G.',
+'....GGyPPPPG....',
+'.G...GGPPPG.....',
+'......GGGG...G..',
+'...G............',
+'.....G.....G....',
+'........G.......',
+'................',
+'................',
+'................'],
+// ---------- 서리 결정 ----------
+'frost:f': [
+'................',
+'.......k........',
+'......kik.......',
+'......kiBk......',
+'.....kiiBk......',
+'.....kiiBBk.....',
+'....kiiBBBk.....',
+'..k.kiBBBBk.k...',
+'..kkiBBBbbkk....',
+'...kBBBbbbk.....',
+'....kBbbbk......',
+'....kbbvk.......',
+'.....kvk........',
+'......k.........',
+'................',
+'................'],
+// ---------- 불사조 깃털 ----------
+'phoenix:p': [
+'..............k.',
+'.............ko.',
+'............koy.',
+'...........koyy.',
+'..........kRoyk.',
+'.........kRRoyk.',
+'........kRRRok..',
+'.......kRRRok...',
+'......kmRRok....',
+'.....kmRRok.....',
+'....kmmRok......',
+'...kmmRk........',
+'..khmRk.........',
+'.khhk...........',
+'.kk.............',
+'................'],
+// ---------- 소금 결정 ----------
+'saltcrystal:s': [
+'................',
+'.......k........',
+'......kwk.......',
+'.....kwwqk......',
+'.....kwwqk......',
+'....kwwwqqk.....',
+'..k.kwwqqqk.k...',
+'.kwkkwwqqqkkqk..',
+'.kwwqwwqqqqqqk..',
+'..kwqqwqqqqqk...',
+'...kqqqqqqqk....',
+'....kqqqqqk.....',
+'.....kkkkk......',
+'................',
+'................',
+'................'],
+// ---------- 불안정 결정 ----------
+'unstable:u': [
+'.....R..........',
+'.......kB.......',
+'..R...kPk..B....',
+'.....kPPpk......',
+'.....kPPpk......',
+'....kPPppxk.....',
+'.R..kPPppxk..B..',
+'...kPPpppxxk....',
+'...kPppppxxk....',
+'..R.kpppxxk.B...',
+'....kppxxxk.....',
+'.....kpxxk......',
+'.....kxxk.......',
+'..R...kk...B....',
+'................',
+'................'],
+// ---------- 잉걸 촉매 ----------
+'ember:e': [
+'................',
+'................',
+'................',
+'......kkkk......',
+'....kkdRdkk.....',
+'...kdRRoRdk.....',
+'..kdRRoyoRdk....',
+'..kdRoyyyoRk....',
+'..kdRRoyoRdk....',
+'..kkdRRoRRdk....',
+'...kddRRRddk....',
+'....kkdddkk.....',
+'......kkkk......',
+'................',
+'................',
+'................'],
+};
+
+const ENEMY_SPRITES = {
+  rat: [
+    '........................',
+    '..kk.........kk.........',
+    '.khhk.......khhk........',
+    '.kqhk.......khqk........',
+    '.kSSkkkkkkkkkSSk........',
+    '..kSSSSSSSSSSSk..knnk...',
+    '.kSSSSSSSSSSssk....knnk.',
+    'kSSrrkSSSssrrkssk...knk.',
+    'kSrrrkSSssssrrrkssk.knk.',
+    'kwSSSSSSSssssssssskk.knk',
+    '.kkSSSSSssssssssssk.knk.',
+    '...kqkSsssssssssssk.knk.',
+    '...kwksssssssssssssk.knk',
+    '....kssssssssssssskknnk.',
+    '....kdsssssssssssk.knnk.',
+    '....kddsssssssssk.knnk..',
+    '....kdddsssssssdk.......',
+    '.....kkddddddddk........',
+    '......kNkkkkkkNk........',
+    '......kNk....kNk........',
+    '......kkk....kkk........',
+    '........................',
+    '........................',
+    '........................',
+  ],
+  firebat: [
+    '........................',
+    '..o..................o..',
+    '..yk................ky..',
+    '.koyk..............kyok.',
+    '.kmoyk..kmk..kmk..kyomk.',
+    '.kmmoyk.kmmkkmmk.kyommk.',
+    'kmmmoykkkmmmmmmkkkyommmk',
+    'kmmmmmkmyymmmmyymkmmmmmk',
+    'kmmrmmkmmRRmmRRmmkmmrmmk',
+    'kmrrmmmkmmmmmmmmkmmmrrmk',
+    'kmrrmmmmkmmmmmmkmmmmrrmk',
+    'kkmrrmmmmkmmmmkmmmmrrmkk',
+    '.kkmrrmmmkmmmmkmmmrrmkk.',
+    '...kkmrmmkmmmmkmmrmkk...',
+    '.....kkmmkmmmmkmmkk.....',
+    '.......kkkmmmmkkk.......',
+    '..........kmmk..........',
+    '..........kmmk..........',
+    '..........kkkk..........',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+  ],
+  slime: [
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+    '.........kkkkkk.........',
+    '.......kkCCCCCCkk.......',
+    '......kCCCCCCCCCCk......',
+    '.....kwwCCccccCCCCk.....',
+    '....kwwwccccccccCCCk....',
+    '...kCwwcccccccccccCCk...',
+    '..kCccccccccccccccccCk..',
+    '..kccccccccccccccBccck..',
+    '.kcccccccccccccccBcccck.',
+    '.kcccccBcccccccccccccck.',
+    '.kccccBBcccccccccccccck.',
+    'kcccccccccccccccccccccck',
+    'kcccccccccccccccccccccck',
+    'kccccccccccccccBccccccck',
+    'kccccccccccccccBBcccccck',
+    'kcccccccccccccccccccccck',
+    '.keeeeeeeeeeeeeeeeeeeek.',
+    '.kkeeeeeeeeeeeeeeeeeekk.',
+    '..kkkkkkkkkkkkkkkkkkkk..',
+    '........................',
+  ],
+  wraith: [
+    '........................',
+    '.......kkkkkk...........',
+    '......kiiiiiik..........',
+    '.....kiiiiiiiik.........',
+    '....kiiiiiiiiiik........',
+    '....kiiiiiiiiiik...ii...',
+    '...kiiBBiiiBBiiik..iBi..',
+    '...kiiBBiiiBBiiik...i...',
+    '...kiiiiiiiiiiiik.......',
+    '..kiiiiibbbiiiiiik......',
+    '..kiiiiibbbiiiiiik...i..',
+    '..kiiiiiiiiiiiiiik..iBi.',
+    '..kbiiiiiiiiiiiibk...i..',
+    '.kbbiiiiiiiiiiiibbk.....',
+    '.kbbbiiiiiiiiiibbbk.....',
+    '.kbbbbiiiiiibbbbk.......',
+    '..kbbbbiiiibbbbk........',
+    '..kbbbk.kbbk.kbbbk......',
+    '..kbvk...kbk...kvbk.....',
+    '...kvk...kbk...kvk......',
+    '...kk.....kvk....kk.....',
+    '..........kk............',
+    '........................',
+    '........................',
+  ],
+  goblin: [
+    '........................',
+    '......kkkkkk............',
+    '....kkddddddkk..........',
+    '...kdddddddddk..........',
+    '..kddddddddddddk........',
+    '..kddddddddddddk........',
+    '.kkddddddddddddkk.......',
+    'kGkdggggggggggdkk.......',
+    'kGGkdgGGGGGGggdk........',
+    '.kGkgGkrGkrGkGgk........',
+    '..kkgGGGGGGGGGgk........',
+    '...kgGGkkkkkGGgk........',
+    '...kgGGkwwwkGGgk........',
+    '...kggGGkkkGGggk........',
+    '....kggGGGGGggk.........',
+    '.....kkgggggkkkgg.kkkkkk',
+    '...kkkkkeggekkkkkgknnnnk',
+    '..kdddddeggeddddk.knnnnk',
+    '..kdgggddeggeddgk.knnnnk',
+    '..kgGGgddeeddgGGgkknnnnk',
+    '...kkkkddgggddkkkkknnnnk',
+    '.....kggkkggk.....knnnnk',
+    '.....kggk.kggk....kkkkkk',
+    '.....knnk.knnk..........',
+  ],
+  beetle: [
+    '........................',
+    '........................',
+    '..........kddk..........',
+    '..........kddk..........',
+    '.........kddddk.........',
+    '.........kdssdk.........',
+    'kk.......kdssdk.......kk',
+    '.kpk....kkdssdkk....kpk.',
+    '..kpk..kdssssssdk..kpk..',
+    '...kkkkkdssssssdkkkkk...',
+    '...kxpPSSSSkkSSSSPpxk...',
+    '..kxPPSSSSSkkSSSSSPpxk..',
+    '.kxPPSSSSSSkkSSSSSSPpxk.',
+    'kxpPPSSSSSSkkSSSSSSSPpxk',
+    'kxpPSSdddSSkkSSdddSSPpxk',
+    'kxppSSdddSSkkSSdddSSppxk',
+    'kxppSSSdSSSkkSSSdSSSppxk',
+    'kxppSSSSSSSkkSSSSSSSppxk',
+    'kxppSSSSSSSkkSSSSSSSppxk',
+    '.kxppSSSSSSkkSSSSSSppxk.',
+    '..kxxppppppkkppppppxxk..',
+    '...kkkkkkkkkkkkkkkkkk...',
+    '.kpk.kpk........kpk.kpk.',
+    'kpk...kpk......kpk...kpk',
+  ],
+  boss: [
+    '................................',
+    '............kddddddk............',
+    '...........kdssssssdk...........',
+    '...........kdsSssSsdk...........',
+    '...........kdoossoodk...........',
+    '...........kdssssssdk...........',
+    '...........kkddssddkk...........',
+    '..kkkkkkk..kkddddddkk..kkkkkkk..',
+    '..kdddddkkddddddddddddkkdddddk..',
+    '..kdsSSsdkdsSSSSSSSSsdkdsSSsdk..',
+    '..kdsSSsdkdsSSSSSSSSsdkdsSSsdk..',
+    '..kdssssdkdssSSSSSSssdkdssssdk..',
+    '..kddddddkdssssSSssssdkddddddk..',
+    '.kkdsssdkkdsssSSSSsssdkkdsssdkk.',
+    '.kdsssdk..kdskkyykksdk..kdsssdk.',
+    '.kdsssdk..kdskyooyksdk..kdsssdk.',
+    '.kdsssdk..kdkyoRRoykdk..kdsssdk.',
+    '.kdsssdk..kdkyRRRRykdk..kdsssdk.',
+    '.kddsddk..kdkyoRRoykdk..kddsddk.',
+    '.kkdddkk..kdkyooooykdk..kkdddkk.',
+    '..kdsdk...kdkkyyyykkdk...kdsdk..',
+    '..kdddk...kdkkkkkkkkdk...kdddk..',
+    '..kkkkk...kdssssssssdk...kkkkk..',
+    '..........kdssssssssdk..........',
+    '..........kdssssssssdk..........',
+    '.........kddddddddddddk.........',
+    '.........kdssdk..kdssdk.........',
+    '.........kdssdk..kdssdk.........',
+    '.........kdssdk..kdssdk.........',
+    '.........kdssdk..kdssdk.........',
+    '........kdssssk..kssssdk........',
+    '........kkkkkkk..kkkkkkk........',
+  ],
+};
+const SCENE_SPRITES = {
+'wall': [
+'sssssssksssssssk',
+'sddkdddksddddddk',
+'sddddddksddkdddk',
+'kkkkkkkkkkkkkkkk',
+'ssskssssssskssss',
+'dddkskdddddksddd',
+'dddksddddddkskdd',
+'kkkkkkkkkkkkkkkk',
+'sssssssksssssssk',
+'sdkddddksddddddk',
+'sddddddksdkddddk',
+'kkkkkkkkkkkkkkkk',
+'ssskssssssskssss',
+'dddksdkddddksddd',
+'dddksddddddksdkd',
+'kkkkkkkkkkkkkkkk'],
+'floor': [
+'kkkkkkkkkkkkkkkk',
+'ksssssssksssssss',
+'ksddddddksddddhd',
+'ksdhddddksdddddd',
+'ksddddddksdddddd',
+'ksddddddksddhddd',
+'ksddddddksdddddd',
+'ksddddddksdddddd',
+'kkkkkkkkkkkkkkkk',
+'ksssssssksssssss',
+'ksddddddksdddddd',
+'ksddddddksdddddd',
+'ksdddhddksdddddd',
+'ksddddddksdhdddd',
+'kshdddddksdddddd',
+'ksddddddksdddddd'],
+'pile': [
+'................',
+'.......kk.......',
+'......kBBk......',
+'..kk..kBbk.kk...',
+'.kRRk.kbbkkNNk..',
+'.kRRkkkkkkkNNk..',
+'..kkNNNNNNkkk...',
+'..kNtttttNNNk...',
+'..kNttttNNNNk...',
+'..kNtttNNNNNk...',
+'.kNNttNNNNNNNk..',
+'.kNNNNNNNNNNNk..',
+'.kNNNNNNNNNNnk..',
+'.knNNNNNNNnnnk..',
+'..kkkkkkkkkkk...',
+'................'],
+'sign': [
+'................',
+'..kkkkkkkkkkk...',
+'.kNNNNNNNNNNNk..',
+'.kNNyyNyyNNNNk..',
+'.kNNNNNNyNNNNk..',
+'.kNNNNNyNNNNNk..',
+'.kNNNNNyNNNNNk..',
+'.kNNNNNNNNNNNk..',
+'.kNNNNNyNNNNNk..',
+'.knnnnnnnnnnnk..',
+'..kkkkkkkkkkk...',
+'......knnk......',
+'......knnk......',
+'......khhk......',
+'......khhk......',
+'......kkkk......'],
+'campfire': [
+'................',
+'.......y........',
+'......yoy.......',
+'......yoy.......',
+'.....yooRy......',
+'.....yoRRo......',
+'....yooRRRo.....',
+'....oRRRRRRo....',
+'...oRRRRRRRRo...',
+'...RRRmRRmRRR...',
+'..kkkkkkkkkkkk..',
+'.knNNnnnnnnNNnk.',
+'.khnnnkkkknnnhk.',
+'..kkkknnnnkkkk..',
+'......kkkk......',
+'................'],
+'door': [
+'.....kkkkkk.....',
+'...kkssssssk....',
+'..kssdddddddsk..',
+'.ksddddddddddsk.',
+'.kdddRRRRRRdddk.',
+'.kddRRooooRRddk.',
+'.kddRoyyyyoRddk.',
+'.kddRoyyyyoRddk.',
+'.kddRRooooRRddk.',
+'.kdddRRRRRRdddk.',
+'.kddddddddddddk.',
+'.kddddkddkddddk.',
+'.kddddkddkddddk.',
+'.kddddkddkddddk.',
+'.kkkkkkkkkkkkkk.',
+'................'],
+};
+
+const EXTRA_SPRITES = {
+'flask_cold': [
+'................',
+'......kkkk......',
+'......kvvk......',
+'......kNNk......',
+'.....kkNNkk.....',
+'....kttNNttk....',
+'....kNBBBNNk....',
+'....kBBBBBbk....',
+'....kBBBBbbk....',
+'....kBBBBbbk....',
+'....kBBbbbbk....',
+'....kBbbbbvk....',
+'....kbbbbvvk....',
+'.....kkkkkk.....',
+'................',
+'................'],
+'flask_acid': [
+'................',
+'......kkkk......',
+'......keek......',
+'......kNNk......',
+'.....kkNNkk.....',
+'....kttNNttk....',
+'....kNGGGNNk....',
+'....kGGGGGgk....',
+'....kGGGGggk....',
+'....kGGGGggk....',
+'....kGGggggk....',
+'....kGggggek....',
+'....kggggeek....',
+'.....kkkkkk.....',
+'................',
+'................'],
+'flask_poison': [
+'................',
+'......kkkk......',
+'......kxxk......',
+'......kNNk......',
+'.....kkNNkk.....',
+'....kttNNttk....',
+'....kNPPPNNk....',
+'....kPPPPPpk....',
+'....kPPPPppk....',
+'....kPPPPppk....',
+'....kPPppppk....',
+'....kPppppxk....',
+'....kppppxxk....',
+'.....kkkkkk.....',
+'................',
+'................'],
+'potion': [
+'................',
+'......kkkk......',
+'......kmmk......',
+'......kNNk......',
+'.....kkNNkk.....',
+'....kttNNttk....',
+'....kNqqqNNk....',
+'....kqqqqqrk....',
+'....kqqqqrrk....',
+'....kqqqqrrk....',
+'....kqqrrrrk....',
+'....kqrrrrmk....',
+'....krrrrmmk....',
+'.....kkkkkk.....',
+'................',
+'................'],
+'dagger': [
+'................',
+'.............kk.',
+'............kSk.',
+'...........kSwk.',
+'..........kSwk..',
+'.........kSwk...',
+'........kSwk....',
+'.......kSwk.....',
+'......kSSk......',
+'....kkkSkkk.....',
+'...kNNkkkNNk....',
+'....kkknkkk.....',
+'......knnk......',
+'......khhk......',
+'......kkkk......',
+'................'],
+'shield': [
+'................',
+'...kkkkkkkkkk...',
+'..kSSSSSSSSSSk..',
+'..kSwwSSSSSSsk..',
+'..kSwSSkkSSSsk..',
+'..kSSSkyykSSsk..',
+'..kSSSkyykSSsk..',
+'..kSSSSkkSSssk..',
+'..kSSSSSSSsssk..',
+'...kSSSSSssssk..',
+'...kSSSSsssssk..',
+'....kSSsssssk...',
+'.....kSsssk.....',
+'......kssk......',
+'.......kk.......',
+'................'],
+'armor': [
+'................',
+'....kkk..kkk....',
+'...knNnkknNnk...',
+'..knNNnnnnNNnk..',
+'..knNnnnnnnnnk..',
+'..kknnnkknnnkk..',
+'...knnnkknnnk...',
+'...knnnnnnnnk...',
+'...knnhnnhnnk...',
+'...knnnnnnnnk...',
+'...knhnnnnhnk...',
+'...knnnnnnnnk...',
+'...khnnhhnnhk...',
+'...khhhhhhhhk...',
+'....kkkkkkkk....',
+'................'],
+'crystal': [
+'................',
+'.......k........',
+'......kBk.......',
+'.....kBiBk......',
+'.....kBiBk......',
+'....kBBiBbk.....',
+'....kBBiBbk.....',
+'...kBBBiBbbk....',
+'...kBBBiBbbk....',
+'...kBBBBbbbk....',
+'....kBBbbbk.....',
+'....kBBbbbk.....',
+'.....kBbbk......',
+'.....kbbk.......',
+'......kk........',
+'................'],
+'charm': [
+'................',
+'.......kk.......',
+'......kNNk......',
+'.....kNkkNk.....',
+'.....kNk.kk.....',
+'....kkNNkk......',
+'...kNNNNNNk.....',
+'..kNNyyyyNNk....',
+'..kNyyRRyyNk....',
+'..kNyRRRRyNk....',
+'..kNyyRRyyNk....',
+'..kNNyyyyNNk....',
+'...kNNNNNNk.....',
+'....kkkkkk......',
+'................',
+'................'],
+};
+
+const SpriteCache=new Map();
+function tileURL(rows){ return 'url("data:image/svg+xml;utf8,'+encodeURIComponent(spriteSVG(rows,{key:'tile:'+rows[0]+rows[1]}))+'")'; }
+function sceneSprite(k, size){ return `<span class="spr" style="width:${size}px;height:${size}px">${spriteSVG(SCENE_SPRITES[k],{key:'scene:'+k})}</span>`; }
+function spriteSVG(rows, opts={}){
+  const key=(opts.key||rows.join('|'))+(opts.stretch?'#s':'');
+  if(SpriteCache.has(key)) return SpriteCache.get(key);
+  const n=rows.length; let out='';
+  rows.forEach((r,y)=>{ let x=0; while(x<r.length){ const ch=r[x]; if(ch==='.'){x++;continue;} let w=1; while(x+w<r.length&&r[x+w]===ch) w++; out+=`<rect x="${x}" y="${y}" width="${w}" height="1" fill="${PALETTE[ch]||'#f0f'}"/>`; x+=w; } });
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${n} ${n}" shape-rendering="crispEdges"${opts.stretch?' preserveAspectRatio="none"':''}>${out}</svg>`;
+  SpriteCache.set(key,svg); return svg;
+}
+function itemSpriteRows(id, st){
+  let rows=ITEM_SPRITES[`${id}:${st}`];
+  if(!rows){ const k=Object.keys(ITEM_SPRITES).find(k=>k.startsWith(id+':')); rows=ITEM_SPRITES[k]; }
+  return rows||['k'];
+}
+function itemSprite(id, st, size, extra=''){ const rows=itemSpriteRows(id,st); const stretch=(id==='divider'); const sz=size?`width:${size}px;height:${size}px;`:''; return `<span class="spr${stretch?' stretch':''}" style="${sz}${extra}">${spriteSVG(rows,{key:`${id}:${st}`,stretch})}</span>`; }
+function enemySprite(id, size){ const rows=(typeof ENEMY_SPRITES!=='undefined'&&ENEMY_SPRITES[id])||['k']; const sz=size?`width:${size}px;height:${size}px;`:''; return `<span class="spr" style="${sz}">${spriteSVG(rows,{key:'enemy:'+id})}</span>`; }
+function playerSprite(size){ return `<span class="spr" style="width:${size}px;height:${size}px">${spriteSVG(PLAYER_SPRITE,{key:'player'})}</span>`; }
+</script>
+<script>
+'use strict';
+/* =====================================================================
+   VOLATILE v0.6 — 규칙을 한 줄로: "옆에 두면 +N, 클릭하면 쓴다"
+   반응·속성·타이머 없음. 아이템 = 그림 + 숫자 하나 + 한 줄 설명.
+   ===================================================================== */
+const EXTRA2 = {
+'book': [
+'................',
+'..kkkkkkkkkkkk..',
+'.kmmmmmmmmmmmmk.',
+'.kmrrrrrrrrrrmk.',
+'.kmryyyyyyyyrmk.',
+'.kmrywwwwwwyrmk.',
+'.kmrywkkkkwyrmk.',
+'.kmrywkoykwyrmk.',
+'.kmrywkyokwyrmk.',
+'.kmrywkkkkwyrmk.',
+'.kmrywwwwwwyrmk.',
+'.kmryyyyyyyyrmk.',
+'.kmrrrrrrrrrrmk.',
+'.khhhhhhhhhhhhk.',
+'..kkkkkkkkkkkk..',
+'................'],
+'bigshield': [
+'................',
+'..kkkkkkkkkkkk..',
+'.kSSSSSSSSSSSsk.',
+'.kSwwSSSSSSSSsk.',
+'.kSwSSSkkkSSSsk.',
+'.kSSSSkyyykSSsk.',
+'.kSSSSkyRykSSsk.',
+'.kSSSSkyyykSSsk.',
+'.kSSSSSkkkSsssk.',
+'.kSSSSSSSSssssk.',
+'..kSSSSSSssssk..',
+'...kSSSSsssk....',
+'....kSSsssk.....',
+'.....kssk.......',
+'......kk........',
+'................'],
+};
+Object.assign(ITEM_SPRITES, EXTRA_SPRITES, EXTRA2);
+function sprI(key, size){ const rows=ITEM_SPRITES[key]||['k']; const sz=size?`width:${size}px;height:${size}px;`:''; return `<span class="spr" style="${sz}">${spriteSVG(rows,{key})}</span>`; }
+
+/* ---------- 아이템 ----------
+   type: attack(적 클릭) · block(방어) · heal(회복) · passive(놓기만 해도 효과)
+   tags: 옆 패시브가 무엇을 강화하는지 고르는 꼬리표 (weapon / flask / fire / shield / potion) */
+const ITEMS = {
+  dagger:   {name:'단검',        spr:'dagger',       w:1,h:1, type:'attack', cost:1, dmg:2, tags:['weapon'],      desc:'2 피해 · 단검끼리 붙이면 각각 +1'},
+  fire:     {name:'화염 플라스크', spr:'oil:lit',      w:1,h:1, type:'attack', cost:1, dmg:3, burn:2, tags:['flask','fire'], desc:'3 피해 + 화상 2'},
+  cold:     {name:'냉기 플라스크', spr:'flask_cold',   w:1,h:1, type:'attack', cost:1, dmg:2, freeze:true, tags:['flask','cold'], desc:'2 피해 + 적을 1턴 얼림'},
+  acid:     {name:'산성 플라스크', spr:'flask_acid',   w:1,h:1, type:'attack', cost:1, dmg:3, pierce:true, tags:['flask'], desc:'3 피해 · 방어 무시'},
+  poison:   {name:'독 플라스크',   spr:'flask_poison', w:1,h:1, type:'attack', cost:1, dmg:1, poison:2, tags:['flask','poison'], desc:'1 피해 + 중독 2 (3턴)'},
+  bomb:     {name:'폭탄',        spr:'powder:dry',   w:1,h:1, type:'attack', cost:2, dmg:4, aoe:true, tags:['fire'],  desc:'적 전체 4 피해'},
+  potion:   {name:'치유 물약',    spr:'potion',       w:1,h:1, type:'heal',   cost:1, heal:5, consume:true, tags:['potion'], desc:'회복 5 · 1회용'},
+  shield:   {name:'방패',        spr:'shield',       w:1,h:1, type:'block',  cost:1, block:4, tags:['shield'], desc:'방어 4'},
+  bigshield:{name:'큰 방패',      spr:'bigshield',    w:1,h:2, type:'block',  cost:2, block:8, tags:['shield'], desc:'방어 8'},
+  torch:    {name:'화로',        spr:'torch:lit',    w:1,h:2, type:'passive', aura:{tag:'fire', dmg:2, dirs:['up','down']},   desc:'위·아래 불 아이템 피해 +2'},
+  catalyst: {name:'촉매',        spr:'saltcrystal:s',w:1,h:1, type:'passive', aura:{tag:'flask', dmg:1},  desc:'옆 플라스크 피해 +1'},
+  book:     {name:'연금술 서적',   spr:'book',         w:2,h:2, type:'passive', aura:{tag:'flask', dmg:2},  desc:'옆 플라스크 피해 +2 (2×2)'},
+  whetstone:{name:'숫돌',        spr:'flint:f',      w:1,h:1, type:'passive', aura:{tag:'weapon', dmg:2, dirs:['left','right']}, desc:'좌·우 무기 피해 +2'},
+  icecore:  {name:'얼음 결정',    spr:'frost:f',      w:1,h:1, type:'passive', aura:{tag:'cold', dmg:2},  desc:'옆 냉기 아이템 피해 +2'},
+  charm:    {name:'부적',        spr:'charm',        w:1,h:1, type:'passive', aura:{tag:'shield', block:2}, desc:'옆 방패 방어 +2'},
+  herb:     {name:'약초',        spr:'mushroom:raw', w:1,h:1, type:'passive', aura:{tag:'potion', heal:3}, desc:'옆 물약 회복 +3'},
+  armor:    {name:'가죽 갑옷',    spr:'armor',        w:2,h:2, type:'passive', startBlock:3, desc:'매 턴 시작 방어 3 (2×2)'},
+  crystal:  {name:'마력 결정',    spr:'crystal',      w:1,h:1, type:'passive', energy:1, desc:'에너지 +1'},
+  feather:  {name:'불사조 깃털',  spr:'phoenix:p',    w:1,h:1, type:'passive', aura:{tag:'fire', dmg:3}, desc:'옆 불 아이템 피해 +3'},
+};
+for(const k in ITEMS) ITEMS[k].id=k;
+const TYPE_KO={attack:'공격', block:'방어', heal:'회복', passive:'패시브'};
+/* 상극: 붙어 있으면 서로 약해진다 */
+const CONFLICTS=[{a:'fire', b:'cold', dmg:1, text:'불과 냉기는 붙으면 서로 -1'},{a:'poison', b:'potion', heal:2, text:'독 옆의 물약은 회복 -2'}];
+const POOL = {
+  1:['dagger','fire','cold','shield','potion','catalyst','whetstone','herb','poison','dagger','fire'],
+  2:['fire','cold','acid','bomb','shield','bigshield','potion','catalyst','whetstone','charm','torch','armor','poison','icecore'],
+  3:['acid','bomb','fire','cold','bigshield','potion','charm','torch','armor','crystal','catalyst','book','icecore','whetstone'],
+};
+const PASSIVES=['torch','catalyst','whetstone','charm','herb','armor','crystal','icecore','book'];
+
+/* ---------- 적 ---------- */
+/* 의도: atk(공격) · charge(다음 공격 2배 예고) · shell(방어 +2) · curse(가방 칸 하나 봉인) · steal(아이템 훔치기) · breath(숨결 8) */
+const ENEMIES = {
+  rat:    {name:'동굴 쥐',       hp:7,  atk:2, pat:['atk','atk','steal'], desc:'3턴마다 아이템을 훔친다 (죽이면 돌려줌)'},
+  firebat:{name:'화염 박쥐',     hp:6,  atk:3, weak:'cold', pat:['atk','charge','atk'], desc:'냉기에 2배 피해 · 힘을 모으면 다음 공격 2배'},
+  slime:  {name:'젖은 슬라임',   hp:10, atk:2, pat:['atk','shell','atk'], desc:'껍질을 두르면 방어 +2 (산성으로 무시)'},
+  wraith: {name:'서리 유령',     hp:8,  atk:2, weak:'fire', pat:['curse','atk','atk'], desc:'불에 2배 피해 · 가방 칸을 봉인한다'},
+  goblin: {name:'고블린 소매치기', hp:8, atk:1, hits:2, pat:['atk','steal','atk'], desc:'두 번 공격 · 아이템을 훔친다'},
+  beetle: {name:'갑옷 딱정벌레', hp:14, atk:4, armor:3, pat:['atk','atk','charge'], desc:'방어 3 · 힘을 모으면 다음 공격 2배'},
+  boss:   {name:'용광로 지킴이', hp:45, atk:3, boss:true, pat:['atk','curse','breath'], desc:'3턴마다 화염 숨결 8 · 가방 칸을 봉인한다'},
+};
+for(const k in ENEMIES) ENEMIES[k].id=k;
+const ENCOUNTERS = {
+  1:{normal:[['rat'],['firebat'],['slime'],['rat','firebat'],['rat','slime'],['firebat','slime']], elite:[['firebat','firebat']]},
+  2:{normal:[['wraith','rat'],['goblin','slime'],['wraith','goblin'],['firebat','goblin','rat'],['wraith','slime']], elite:[['firebat','wraith']]},
+  3:{normal:[['beetle','rat'],['beetle','slime'],['beetle','goblin','firebat'],['beetle','wraith']], elite:[['beetle','slime']]},
+};
+
+/* ---------- 가방 ---------- */
+let UID=1;
+function mkItem(id){ return {uid:UID++, id, x:0, y:0, rot:false, used:false}; }
+function idef(it){ return ITEMS[it.id]; }
+function dims(it){ const d=idef(it); return it.rot?{w:d.h,h:d.w}:{w:d.w,h:d.h}; }
+function itemCells(it,x=it.x,y=it.y,rot=it.rot){ const d=idef(it); const w=rot?d.h:d.w, h=rot?d.w:d.h; const o=[]; for(let j=0;j<h;j++) for(let i=0;i<w;i++) o.push([x+i,y+j]); return o; }
+function mkBag(cols=5,rows=4){ return {cols,rows,items:[]}; }
+function cidx(bag,x,y){ return y*bag.cols+x; }
+function inBag(bag,x,y){ return x>=0&&y>=0&&x<bag.cols&&y<bag.rows; }
+function occMap(bag,ignore){ const m=new Map(); for(const it of bag.items){ if(it.uid===ignore) continue; for(const [x,y] of itemCells(it)) m.set(cidx(bag,x,y),it); } return m; }
+function canPlace(bag,it,x,y,rot){ const occ=occMap(bag,it.uid); for(const [cx,cy] of itemCells(it,x,y,rot)){ if(!inBag(bag,cx,cy)||occ.has(cidx(bag,cx,cy))) return false; } return true; }
+function addItem(bag,it){ for(const rot of [false,true]) for(let y=0;y<bag.rows;y++) for(let x=0;x<bag.cols;x++) if(canPlace(bag,it,x,y,rot)){ it.x=x;it.y=y;it.rot=rot; bag.items.push(it); return true; } return false; }
+function neighborsDir(bag,it){ const occ=occMap(bag,it.uid); const seen=new Set(); const out=[]; const D={'1,0':'right','-1,0':'left','0,1':'down','0,-1':'up'}; for(const [x,y] of itemCells(it)) for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){ const nx=x+dx,ny=y+dy; if(!inBag(bag,nx,ny)) continue; const nb=occ.get(cidx(bag,nx,ny)); if(nb&&!seen.has(nb.uid)){ seen.add(nb.uid); out.push({nb, dir:D[dx+','+dy]}); } } return out; }
+const OPP={up:'down',down:'up',left:'right',right:'left'};
+function neighbors(bag,it){ const occ=occMap(bag,it.uid); const seen=new Set(); const out=[]; for(const [x,y] of itemCells(it)) for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){ const nx=x+dx,ny=y+dy; if(!inBag(bag,nx,ny)) continue; const nb=occ.get(cidx(bag,nx,ny)); if(nb&&!seen.has(nb.uid)){ seen.add(nb.uid); out.push(nb); } } return out; }
+/* 옆 패시브·상극·연쇄·강화를 합친 실제 수치. 이유를 reasons에 남긴다 */
+function auraHits(bag, src, dst){ const a=idef(src).aura; if(!a) return false; const t=idef(dst).tags; if(!t||!t.includes(a.tag)) return false; if(!a.dirs) return true; const rel=neighborsDir(bag,src).find(o=>o.nb===dst); return !!rel && a.dirs.includes(rel.dir); }
+function eff(bag,it){
+  const d=idef(it); const up=it.up||0; const e={dmg:(d.dmg!=null?d.dmg+up:0), block:d.block?d.block+up:0, heal:d.heal?d.heal+up:0, bonus:0, penalty:0, reasons:[]};
+  if(up) e.reasons.push(`강화 +${up}`);
+  for(const nb of neighbors(bag,it)){
+    const nd=idef(nb);
+    if(auraHits(bag,nb,it)){ const a=nd.aura; if(a.dmg&&d.dmg!=null){ e.dmg+=a.dmg; e.bonus+=a.dmg; e.reasons.push(`${nd.name} +${a.dmg}`); } if(a.block&&d.block){ e.block+=a.block; e.bonus+=a.block; e.reasons.push(`${nd.name} +${a.block}`); } if(a.heal&&d.heal){ e.heal+=a.heal; e.bonus+=a.heal; e.reasons.push(`${nd.name} +${a.heal}`); } }
+    if(nb.id===it.id && (d.tags||[]).some(t=>t==='weapon'||t==='flask') && d.dmg!=null){ e.dmg+=1; e.bonus+=1; e.reasons.push(`${nd.name} 연쇄 +1`); }
+    for(const c of CONFLICTS){ const mine=d.tags||[], theirs=nd.tags||[]; const hit=(mine.includes(c.a)&&theirs.includes(c.b))||(mine.includes(c.b)&&theirs.includes(c.a)); if(!hit) continue; if(c.dmg&&d.dmg!=null){ e.dmg=Math.max(0,e.dmg-c.dmg); e.penalty+=c.dmg; e.reasons.push(`${nd.name} 상극 -${c.dmg}`); } if(c.heal&&d.heal){ e.heal=Math.max(0,e.heal-c.heal); e.penalty+=c.heal; e.reasons.push(`${nd.name} 상극 -${c.heal}`); } }
+  }
+  return e;
+}
+function boostTargets(bag,it){ return neighbors(bag,it).filter(nb=>auraHits(bag,it,nb)); }
+function expandBag(bag){ if(bag.rows<=bag.cols && bag.rows<5){ bag.rows++; return '가방이 한 줄 늘었다'; } if(bag.cols<6){ bag.cols++; return '가방이 한 칸 넓어졌다'; } return '가방이 이미 최대 크기다'; }
+function maxEnergy(){ return 3+Run.bag.items.filter(it=>idef(it).energy).reduce((s,it)=>s+idef(it).energy,0); }
+function startingBag(){
+  const bag=mkBag(4,3);
+  for(const [id,x,y] of [['torch',0,0],['fire',0,2],['dagger',2,0],['shield',3,0],['potion',3,2]]){ const it=mkItem(id); it.x=x; it.y=y; bag.items.push(it); }
+  return bag;
+}
+
+/* ---------- 유틸 ---------- */
+const rnd=n=>Math.floor(Math.random()*n); const pick=a=>a[rnd(a.length)]; const $=id=>document.getElementById(id);
+function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),1600); }
+function show(id){ document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('active', s.id===id)); window.scrollTo(0,0); }
+function modal(html){ $('modal-root').innerHTML=`<div class="overlay"><div class="modal">${html}</div></div>`; }
+function closeModal(){ $('modal-root').innerHTML=''; }
+function sheet(html){ $('sheet-root').innerHTML=`<div class="sheet"><div class="sheet-in">${html}</div></div>`; }
+function closeSheet(){ $('sheet-root').innerHTML=''; }
+function itemCard(id, size=36){ const d=ITEMS[id]; const n=d.dmg!=null?`<b class="n-dmg">${d.dmg}</b>`:d.block?`<b class="n-block">${d.block}</b>`:d.heal?`<b class="n-heal">${d.heal}</b>`:''; return `<span class="icard">${sprI(d.spr,size)}<span><b>${d.name}</b> ${n}<br><small>${d.desc}${d.cost?` · 에너지 ${d.cost}`:''}</small></span></span>`; }
+
+/* ---------- 런 ---------- */
+const Run={ mode:'explore', hp:30, maxHp:30, floor:1, bag:null, map:null, stats:{turns:0,uses:0,battles:0}, tut:0 };
+function genFloor(f){
+  const steps=[]; const roll=()=>{ const r=Math.random(); return r<.5?'battle':r<.6?'elite':r<.8?'treasure':'event'; };
+  const mk=t=>{ const n={t}; if(t==='battle'||t==='elite') n.ids=pick(ENCOUNTERS[f][t==='elite'?'elite':'normal']).slice(); return n; };
+  steps.push([mk('battle')]); for(let i=0;i<3;i++){ let a=roll(), b=roll(); if(a===b&&a!=='battle') b='battle'; steps.push([mk(a),mk(b)]); } steps.push([mk('elite')]); steps.push([mk('camp')]);
+  return {steps, step:0};
+}
+const NODE_KO={battle:'전투', elite:'정예', treasure:'보물', event:'이벤트', camp:'캠프', boss:'보스'};
+
+/* ---------- 전투 ---------- */
+const Battle={
+  active:false, busy:false, enemies:[], turn:0, energy:3, block:0, sel:null, log:[], locked:new Set(),
+  start(ids, opts={}){
+    Run.mode='battle'; closeSheet(); this.active=true; this.busy=false; this.isElite=!!opts.elite; this.isBoss=!!opts.boss;
+    const scale=1+0.25*(Math.min(Run.floor,4)-1);
+    this.enemies=ids.map((id,i)=>{ const d=ENEMIES[id]; const hp=Math.round(d.hp*scale); return {uid:i,id,hp,maxHp:hp,armor:d.armor||0,st:{},dead:false,pi:0,stolen:[]}; });
+    this.turn=0; this.log=[]; this.locked=new Set(); this.newTurn();
+  },
+  addLog(t){ this.log.push(t); if(this.log.length>6) this.log.shift(); },
+  alive(){ return this.enemies.filter(e=>!e.dead); },
+  newTurn(){
+    this.turn++; Run.stats.turns++; this.energy=maxEnergy(); this.sel=null;
+    this.block=Run.bag.items.filter(it=>idef(it).startBlock).reduce((s,it)=>s+idef(it).startBlock,0);
+    for(const it of Run.bag.items) it.used=false;
+    this.addLog(`${this.turn}턴 시작 · 에너지 ${this.energy}${this.block?` · 방어 ${this.block}`:''}`);
+    UI.render();
+  },
+  canAct(){ return this.active&&!this.busy; },
+  intent(e){ const d=ENEMIES[e.id]; const k=d.pat[e.pi%d.pat.length]; const mul=e.st.charged?2:1; const atk=d.atk*mul;
+    if(k==='atk') return {k, text:`공격 ${atk}${d.hits?'×'+d.hits:''}`, dmg:atk};
+    if(k==='charge') return {k, text:'힘을 모은다 (다음 공격 2배)'};
+    if(k==='shell') return {k, text:'껍질 강화 (방어 +2)'};
+    if(k==='curse') return {k, text:'저주: 가방 칸 봉인'};
+    if(k==='steal') return {k, text:'아이템 훔치기'};
+    if(k==='breath') return {k, text:'화염 숨결 8', dmg:8};
+    return {k:'atk', text:`공격 ${atk}`, dmg:atk}; },
+  isLocked(it){ return itemCells(it).some(([x,y])=>this.locked.has(cidx(Run.bag,x,y))); },
+  /* 아이템 클릭 */
+  clickItem(it){
+    if(Run.mode!=='battle'){ this.sel=(this.sel===it?null:it); UI.render(); return; }
+    if(!this.canAct()) return;
+    const d=idef(it);
+    if(d.type==='passive'){ this.sel=(this.sel===it?null:it); UI.render(); return; }   // 패시브는 옮기기용 선택만
+    if(it.used){ toast('이번 턴에 이미 썼습니다'); return; }
+    if(this.isLocked(it)){ toast('봉인된 칸 위의 아이템은 이번 전투에서 쓸 수 없습니다'); return; }
+    if(this.energy<d.cost){ toast(`에너지가 부족합니다 (필요 ${d.cost})`); return; }
+    if(this.sel!==it){ this.sel=it; UI.render(); return; }
+    if(d.type==='attack'&&!d.aoe){ UI.render(); return; }
+    this.useOn(it,null);
+  },
+  useOn(it, enemy){
+    const d=idef(it); const e=eff(Run.bag,it); if(this.energy<d.cost) return;
+    this.energy-=d.cost; it.used=true; Run.stats.uses++;
+    if(d.type==='block'){ this.block+=e.block; this.addLog(`${d.name}: 방어 +${e.block}`); UI.playerFx('block'); }
+    else if(d.type==='heal'){ Run.hp=Math.min(Run.maxHp,Run.hp+e.heal); this.addLog(`${d.name}: 회복 ${e.heal}`); UI.playerFx('heal'); }
+    else if(d.type==='attack'){ const targets=d.aoe?this.alive():[enemy]; const parts=[]; for(const t of targets){ parts.push(this.hit(t,e.dmg,d)); } this.addLog(`${d.name} → ${d.aoe?'적 전체':ENEMIES[enemy.id].name}: ${parts.join(' / ')}`); }
+    if(d.consume) Run.bag.items=Run.bag.items.filter(x=>x!==it);
+    this.sel=null; UI.render(); this.checkEnd();
+  },
+  hit(t, n, d){
+    const td=ENEMIES[t.id]; let note='';
+    if(td.weak && d.tags && (d.tags.includes(td.weak) || (td.weak==='cold'&&d.freeze))){ n*=2; note+=' 약점!'; }
+    if(t.armor>0 && !d.pierce){ const b=n; n=Math.max(0,n-t.armor); note+=` (방어 ${t.armor})`; }
+    t.hp-=n; UI.pop(t,n);
+    if(d.burn){ t.st.burn=(t.st.burn||0)+d.burn; note+=` 화상 ${t.st.burn}`; }
+    if(d.poison){ t.st.poison={n:d.poison,t:3}; note+=' 중독'; }
+    if(d.freeze){ t.st.freeze=true; note+=' 동결'; }
+    if(t.hp<=0){ this.kill(t); note+=' 처치'; }
+    return `${n} 피해${note}`;
+  },
+  endTurn(){
+    if(!this.canAct()) return; this.busy=true; this.sel=null; UI.render();
+    setTimeout(()=>this.enemyPhase(), 300);
+  },
+  enemyPhase(){
+    let block=this.block;
+    for(const e of this.alive()){
+      const d=ENEMIES[e.id];
+      if(e.st.burn){ e.hp-=e.st.burn; UI.pop(e,e.st.burn); this.addLog(`${d.name} 화상 ${e.st.burn}`); e.st.burn=Math.max(0,e.st.burn-1); if(!e.st.burn) delete e.st.burn; if(e.hp<=0){ this.kill(e); continue; } }
+      if(e.st.poison){ e.hp-=e.st.poison.n; UI.pop(e,e.st.poison.n); this.addLog(`${d.name} 중독 ${e.st.poison.n}`); e.st.poison.t--; if(e.st.poison.t<=0) delete e.st.poison; if(e.hp<=0){ this.kill(e); continue; } }
+      if(e.st.freeze){ delete e.st.freeze; this.addLog(`${d.name}은(는) 얼어서 움직이지 못했다`); continue; }
+      const it=this.intent(e); e.pi++;
+      if(it.k==='atk'||it.k==='breath'){ const hits=d.hits||1; delete e.st.charged; for(let h=0;h<hits;h++){ const cut=Math.min(block,it.dmg); block-=cut; const dmg=it.dmg-cut; UI.lunge(e); if(dmg>0){ Run.hp-=dmg; UI.hurtPlayer(); } this.addLog(`${d.name} ${it.k==='breath'?'화염 숨결':'공격'} ${it.dmg}${cut?` (방어 -${cut})`:''} → ${dmg} 피해`); } }
+      else if(it.k==='charge'){ e.st.charged=true; this.addLog(`${d.name}이(가) 힘을 모은다`); }
+      else if(it.k==='shell'){ e.armor+=2; this.addLog(`${d.name} 방어 +2`); }
+      else if(it.k==='curse'){ const free=[]; for(let i=0;i<Run.bag.cols*Run.bag.rows;i++) if(!this.locked.has(i)) free.push(i); if(free.length){ const c=pick(free); this.locked.add(c); this.addLog(`${d.name}의 저주: 가방 칸 봉인`); } }
+      else if(it.k==='steal'){ const v=Run.bag.items.filter(x=>idef(x).type!=='passive'||true); if(v.length){ const t=pick(v); Run.bag.items=Run.bag.items.filter(x=>x!==t); e.stolen.push(t); if(this.sel===t) this.sel=null; this.addLog(`${d.name}이(가) ${idef(t).name}을(를) 훔쳤다!`); } }
+    }
+    this.busy=false;
+    if(!this.checkEnd()) this.newTurn();
+  },
+  kill(e){ e.dead=true; e.hp=0; if(e.stolen.length){ for(const t of e.stolen){ if(!addItem(Run.bag,t)) this.addLog(`${idef(t).name}은(는) 자리가 없어 잃어버렸다`); } this.addLog(`${ENEMIES[e.id].name}이(가) 훔친 것을 떨어뜨렸다`); e.stolen=[]; } },
+  checkEnd(){
+    if(Run.hp<=0){ Run.hp=0; this.active=false; this.busy=false; UI.render(); setTimeout(()=>Screens.gameOver(),500); return true; }
+    if(this.alive().length===0){ this.active=false; this.busy=false; UI.render(); setTimeout(()=>Screens.victory(),600); return true; }
+    return false;
+  },
+  /* 옮기기: 탐험 중 자유, 전투 중 에너지 1 */
+  moveSel(x,y){
+    const it=this.sel; if(!it) return; if(Run.mode==='battle'&&!this.canAct()) return;
+    if(!canPlace(Run.bag,it,x,y,it.rot)){ toast('놓을 수 없는 자리'); return; }
+    if(Run.mode==='battle'&&itemCells(it,x,y,it.rot).some(([cx,cy])=>this.locked.has(cidx(Run.bag,cx,cy)))){ toast('봉인된 칸에는 놓을 수 없습니다'); return; }
+    if(it.x===x&&it.y===y) return;
+    if(Run.mode==='battle'){ if(this.energy<1){ toast('옮기려면 에너지 1이 필요합니다'); return; } this.energy--; }
+    it.x=x; it.y=y; UI.hover=null; UI.render();
+  },
+  rotateSel(){ const it=this.sel; if(!it) return; const d=idef(it); if(d.w===d.h) return; if(!canPlace(Run.bag,it,it.x,it.y,!it.rot)){ toast('회전할 공간이 없습니다'); return; } if(Run.mode==='battle'){ if(this.energy<1){ toast('에너지 1이 필요합니다'); return; } this.energy--; } it.rot=!it.rot; UI.render(); },
+  discardSel(){ const it=this.sel; if(!it||Run.mode==='battle') return; Run.bag.items=Run.bag.items.filter(x=>x!==it); this.sel=null; toast(`${idef(it).name} 버림`); UI.render(); },
+};
+</script>
+
+<script>
+/* ---------- UI ---------- */
+const UI={
+  hover:null, walking:false, touch:(window.matchMedia&&window.matchMedia('(hover: none)').matches),
+  hint(t){ $('hint').textContent=t; },
+  pop(e,n){ const el=document.querySelector(`.actor.enemy[data-uid="${e.uid}"] .spr`); if(!el) return; const rc=el.getBoundingClientRect(); const p=document.createElement('div'); p.className='dmgpop'; p.textContent='-'+n; p.style.left=(rc.left+rc.width/2)+'px'; p.style.top=rc.top+'px'; $('pop-layer').appendChild(p); const a=el.closest('.actor'); a.classList.add('hurt'); setTimeout(()=>{p.remove(); a.classList.remove('hurt');},800); },
+  fly(fromRect,toEl,html){ if(!fromRect||!toEl) return; const tr=toEl.getBoundingClientRect(); const f=document.createElement('div'); f.className='flying'; f.innerHTML=html; f.style.left=(fromRect.left+fromRect.width/2)+'px'; f.style.top=(fromRect.top+fromRect.height/2)+'px'; $('pop-layer').appendChild(f); requestAnimationFrame(()=>requestAnimationFrame(()=>{ f.style.left=(tr.left+tr.width/2)+'px'; f.style.top=(tr.top+tr.height/2)+'px'; })); setTimeout(()=>f.remove(),460); },
+  lunge(e){ const el=document.querySelector(`.actor.enemy[data-uid="${e.uid}"]`); if(!el) return; el.classList.add('lunge'); setTimeout(()=>el.classList.remove('lunge'),450); },
+  hurtPlayer(){ const el=$('actor-player'); if(!el) return; el.classList.add('hurt'); setTimeout(()=>el.classList.remove('hurt'),400); },
+  playerFx(kind){ const el=$('actor-player'); if(!el) return; const p=document.createElement('div'); p.className='dmgpop fx-'+kind; p.textContent=kind==='block'?'방어':'회복'; const rc=el.getBoundingClientRect(); p.style.left=(rc.left+rc.width/2)+'px'; p.style.top=rc.top+'px'; $('pop-layer').appendChild(p); setTimeout(()=>p.remove(),800); },
+  banner(text){ $('banner').innerHTML=`<div>${text}</div>`; setTimeout(()=>{ $('banner').innerHTML=''; },1500); },
+  render(){
+    const B=Battle, battle=Run.mode==='battle';
+    $('hp-fill').style.width=(Run.hp/Run.maxHp*100)+'%'; $('hp-fill').style.background=Run.hp<=10?'var(--bad)':'var(--ok)'; $('hp-text').textContent=`${Run.hp}/${Run.maxHp}`;
+    const fl=Run.floor<4?Run.floor+'층':'최하층';
+    $('turn-text').textContent= battle?`${fl} · ${B.turn}턴`:`${fl} · 탐험 (${Math.min(Run.map.step+1,Run.map.steps.length)}/${Run.map.steps.length})`;
+    $('energy').innerHTML= battle? `<span class="muted">에너지</span>`+Array.from({length:maxEnergy()},(_,i)=>`<i class="${i<B.energy?'':'used'}"></i>`).join('')+`<span class="blk">${B.block?`방어 ${B.block}`:''}</span>` : `<span class="muted">탐험 중 · 가방 정리 자유</span>`;
+    this.renderScene();
+    const sel=B.sel;
+    $('btn-rot').disabled=!sel||idef(sel).w===idef(sel).h||(battle&&(B.energy<1||B.busy)); $('btn-discard').hidden=battle; $('btn-discard').disabled=!sel; $('btn-cancel').disabled=!sel;
+    $('btn-end').hidden=!battle; $('btn-end').disabled=!B.active||B.busy;
+    // 힌트 (튜토리얼 포함)
+    if(!battle) this.hint(this.walking?'앞으로…':(sel?'빈 칸을 탭하면 옮깁니다. 전투 밖에서는 무료':(Run.tut<1?'아이템을 탭하면 설명이 보이고, 마음대로 옮길 수 있어요. 아래에서 갈 곳을 탭하세요':'아래 장면에서 갈 곳을 탭하세요')));
+    else if(sel&&idef(sel).type==='attack'&&!idef(sel).aoe) this.hint(`${idef(sel).name} 준비 — 아래 적을 탭하면 공격`);
+    else if(sel&&idef(sel).type!=='passive') this.hint(`한 번 더 탭하거나 '사용'을 누르면 씁니다 · 빈 칸을 탭하면 옮기기 (에너지 1)`);
+    else if(sel) this.hint(`${idef(sel).name} — 빈 칸을 탭하면 옮기기 (에너지 1)`);
+    else if(Run.tut<2) this.hint('아이템을 탭하면 설명이 보입니다. 한 번 더 탭하면 사용, 공격은 적을 탭');
+    else this.hint(B.energy>0?'아이템을 클릭해 쓰세요':'에너지를 다 썼습니다. 턴 종료를 누르세요');
+    this.renderBag(); this.renderInfo(); this.renderLog();
+  },
+  renderInfo(){
+    const sel=Battle.sel, el=$('iteminfo'); if(!sel){ el.innerHTML=''; return; }
+    const d=idef(sel), e=eff(Run.bag,sel), battle=Run.mode==='battle';
+    const targets=boostTargets(Run.bag,sel);
+    let num=''; if(d.type==='attack') num=`<b class="n-dmg">피해 ${e.dmg}</b>`; else if(d.type==='block') num=`<b class="n-block">방어 ${e.block}</b>`; else if(d.type==='heal') num=`<b class="n-heal">회복 ${e.heal}</b>`;
+    let syn=''; if(e.reasons.length) syn=`<div class="syn">${e.reasons.join(' · ')}</div>`; if(d.aura) syn+=`<div class="syn">${targets.length?`지금 강화 중: ${targets.map(t=>idef(t).name).join('·')}`:'강화할 아이템이 옆에 없습니다'}</div>`; if(battle&&Battle.isLocked(sel)) syn+=`<div class="c-bad">봉인된 칸 — 이번 전투에서 쓸 수 없음</div>`;
+    let act=''; if(battle&&d.type!=='passive'){ if(sel.used) act='<span class="muted">이번 턴 사용함</span>'; else if(Battle.energy<d.cost) act='<span class="muted">에너지 부족</span>'; else if(d.type==='attack'&&!d.aoe) act='<span class="c-heat">아래 적을 탭</span>'; else act=`<button class="small primary" onclick="Battle.useOn(Battle.sel,null)">사용 (●${d.cost})</button>`; }
+    el.innerHTML=`${sprI(d.spr)}<div class="body"><div class="ttl">${d.name} <span class="badge">${TYPE_KO[d.type]}${d.cost?` · 에너지 ${d.cost}`:''}</span> ${num}</div><div class="desc">${d.desc}${d.consume?' · 쓰면 사라짐':''}</div>${syn}</div>${act}`;
+  },
+  renderLog(){ $('log').innerHTML=Battle.log.slice(-3).map(t=>`<div>${t}</div>`).join(''); },
+  renderBag(){
+    const B=Battle, bag=Run.bag, el=$('bag'); const battle=Run.mode==='battle';
+    el.style.gridTemplateColumns=`repeat(${bag.cols}, var(--cs))`; el.innerHTML='';
+    const sel=B.sel;
+    for(let y=0;y<bag.rows;y++) for(let x=0;x<bag.cols;x++){ const d=document.createElement('div'); d.className='cell'+(battle&&B.locked.has(cidx(bag,x,y))?' locked':''); if(battle&&B.locked.has(cidx(bag,x,y))) d.title='봉인된 칸 (이번 전투 동안)';
+      d.onmouseenter=()=>{ if(this.touch||!sel) return; this.hover={x,y}; this.updateGhost(); };
+      d.onmouseleave=()=>{ if(this.touch) return; if(this.hover){ this.hover=null; this.updateGhost(); } };
+      d.onclick=()=>{ if(!sel) return; if(this.touch&&!(this.hover&&this.hover.x===x&&this.hover.y===y)){ this.hover={x,y}; this.updateGhost(); return; } this.hover=null; B.moveSel(x,y); };
+      el.appendChild(d); }
+    // 시너지 표시: 선택/호버한 패시브가 강화하는 대상, 또는 선택한 아이템을 강화하는 패시브
+    const focus=sel; const boosted=new Set(), boosters=new Set();
+    if(focus){ for(const t of boostTargets(bag,focus)) boosted.add(t.uid); for(const nb of neighbors(bag,focus)){ if(auraHits(bag,nb,focus)) boosters.add(nb.uid); } }
+    for(const it of bag.items){
+      const dm=dims(it), d=idef(it), e=eff(bag,it);
+      const locked=battle&&B.isLocked(it);
+      const node=document.createElement('div'); node.className=`item t-${d.type}`+(it===sel?' selected':'')+(battle&&(it.used||locked)?' used':'')+(boosted.has(it.uid)?' boosted':'')+(boosters.has(it.uid)?' booster':'')+(dm.w*dm.h>1?' multi':'')+(battle&&d.type!=='passive'&&!it.used&&!locked&&B.energy>=d.cost&&B.canAct()?' ready':'');
+      node.style.left=`calc(6px + ${it.x} * (var(--cs) + 3px))`; node.style.top=`calc(6px + ${it.y} * (var(--cs) + 3px))`; node.style.width=`calc(${dm.w} * var(--cs) + ${(dm.w-1)*3}px)`; node.style.height=`calc(${dm.h} * var(--cs) + ${(dm.h-1)*3}px)`;
+      const cls=e.penalty>e.bonus?' down':(e.bonus?' up':'');
+      let num=''; if(d.type==='attack') num=`<b class="num n-dmg${cls}">${e.dmg}</b>`; else if(d.type==='block') num=`<b class="num n-block${cls}">${e.block}</b>`; else if(d.type==='heal') num=`<b class="num n-heal${cls}">${e.heal}</b>`; else if(d.aura) num=`<b class="num n-aura">+${d.aura.dmg||d.aura.block||d.aura.heal}</b>`; else if(d.startBlock) num=`<b class="num n-block">${d.startBlock}</b>`; else if(d.energy) num=`<b class="num n-energy">+${d.energy}</b>`;
+      const cost=d.cost?`<span class="cost">${'●'.repeat(d.cost)}</span>`:'';
+      const arrows=d.aura?(d.aura.dirs||['up','down','left','right']).map(k=>`<i class="arr ${k}"></i>`).join(''):'';
+      const upm=it.up?`<span class="upmark">+${it.up}</span>`:'';
+      node.innerHTML=`<div class="art">${sprI(d.spr)}</div><div class="nm">${d.name}</div>${cost}${num}${arrows}${upm}`;
+      node.title=`${d.name} — ${d.desc}${e.bonus?` (옆 시너지 +${e.bonus})`:''}${d.cost?` · 에너지 ${d.cost}`:''}`;
+      node.onclick=ev=>{ ev.stopPropagation(); this.hover=null; B.clickItem(it); };
+      el.appendChild(node);
+    }
+    this.updateGhost();
+  },
+  updateGhost(){
+    const B=Battle, bag=Run.bag, el=$('bag'); const sel=B.sel;
+    el.querySelectorAll('.item.ghost').forEach(g=>g.remove()); el.querySelectorAll('.cell.can-drop,.cell.cant-drop').forEach(c=>c.classList.remove('can-drop','cant-drop'));
+    if(sel&&this.hover){ const {x,y}=this.hover; const ok=canPlace(bag,sel,x,y,sel.rot);
+      for(const [cx,cy] of itemCells(sel,x,y,sel.rot)) if(inBag(bag,cx,cy)) el.children[cidx(bag,cx,cy)].classList.add(ok?'can-drop':'cant-drop');
+      if(ok){ const nb={cols:bag.cols,rows:bag.rows,items:bag.items.map(i=>i===sel?{...i,x,y}:i)}; const g=nb.items.find(i=>i.uid===sel.uid); const e=eff(nb,g); const d=idef(sel); const dm=dims(sel);
+        const ghost=document.createElement('div'); ghost.className='item ghost'; ghost.style.left=`calc(6px + ${x} * (var(--cs) + 3px))`; ghost.style.top=`calc(6px + ${y} * (var(--cs) + 3px))`; ghost.style.width=`calc(${dm.w} * var(--cs) + ${(dm.w-1)*3}px)`; ghost.style.height=`calc(${dm.h} * var(--cs) + ${(dm.h-1)*3}px)`;
+        const n=d.type==='attack'?e.dmg:d.type==='block'?e.block:d.type==='heal'?e.heal:null;
+        ghost.innerHTML=`<div class="art">${sprI(d.spr)}</div>${n!=null?`<b class="num ${e.bonus?'up':''}">${n}</b>`:''}`; el.appendChild(ghost);
+        if(d.aura){ const targets=boostTargets(nb,g); this.hint(targets.length?`여기 두면 ${targets.map(t=>idef(t).name).join(', ')} 강화 +${d.aura.dmg||d.aura.block||d.aura.heal}`:`여기에는 강화할 아이템이 없습니다`); }
+        else if(n!=null) this.hint(`여기 두면 ${d.name} ${n}${e.bonus?` (시너지 +${e.bonus})`:''}`); }
+    }
+  },
+  renderScene(){
+    const B=Battle, m=Run.map; const battle=Run.mode==='battle';
+    const sc=$('scene'); sc.className='scene f'+Math.min(Run.floor,4)+(this.walking?' walking':'');
+    const A=$('actors'); const prev=[...A.querySelectorAll('.actor.enemy')].map(x=>x.dataset.uid); A.innerHTML='';
+    A.insertAdjacentHTML('beforeend',`<div class="actor player${this.walking?' walk':''}" id="actor-player" style="left:${this.walking?40:15}%">${playerSprite(76)}<div class="lbl">연금술사${battle&&B.block?` <span class="c-cold">🛡${B.block}</span>`:''}</div></div>`);
+    if(battle){
+      const n=B.enemies.length; const pos=n===1?[68]:n===2?[58,82]:[52,70,88];
+      B.enemies.forEach((e,i)=>{ const d=ENEMIES[e.id]; const canHit=B.canAct()&&B.sel&&idef(B.sel).type==='attack'&&!B.sel.used&&!e.dead;
+        const inT=B.intent(e); let intent=e.dead?'':((inT.k==='atk')?inT.text:`<b>${inT.text}</b>`); if(e.st.freeze) intent='<b>동결</b>';
+        const st=[]; if(e.armor) st.push(`방어 ${e.armor}`); if(e.st.charged) st.push('<span class="c-heat">힘 모음</span>'); if(e.stolen.length) st.push(`훔침 ${e.stolen.length}`); if(e.st.burn) st.push(`<span class="c-heat">화상 ${e.st.burn}</span>`); if(e.st.poison) st.push(`<span class="c-wet">중독 ${e.st.poison.n}</span>`); if(d.weak) st.push(`<span class="muted">${d.weak==='fire'?'불':'냉기'} 약점</span>`);
+        const isNew=!prev.includes(String(e.uid));
+        const el=document.createElement('div'); el.className='actor enemy'+(e.dead?' dead':'')+(d.boss?' boss':'')+(canHit?' targetable':'')+(e.st.freeze?' frozen':'')+(isNew?' enter':''); el.dataset.uid=e.uid; el.style.left=pos[i]+'%';
+        el.innerHTML=`${enemySprite(e.id)}<div class="ebar"><i style="width:${e.hp/e.maxHp*100}%"></i></div><div class="lbl">${d.name} <span class="mono" style="font-weight:400">${e.hp}/${e.maxHp}</span></div><div class="intent">${intent}</div><div class="stats">${st.map(x=>`<span>${x}</span>`).join('')}</div>`;
+        el.title=d.desc;
+        el.onclick=()=>{ if(!canHit) return; const selEl=document.querySelector('#bag .item.selected'); const sel=B.sel; UI.fly(selEl&&selEl.getBoundingClientRect(), el.querySelector('.spr'), sprI(idef(sel).spr,38)); if(Run.tut<2) Run.tut=2; B.useOn(sel,e); };
+        A.appendChild(el); if(isNew) requestAnimationFrame(()=>requestAnimationFrame(()=>el.classList.remove('enter')));
+      });
+    } else if(m&&m.step<m.steps.length&&Run.mode==='explore'){
+      const row=m.steps[m.step]; const pos=row.length===1?[70]:[56,84];
+      row.forEach((n,i)=>{ const el=document.createElement('div'); const fight=n.t==='battle'||n.t==='elite'||n.t==='boss'; el.className='obj'+(fight?' sil':'')+(n.t==='elite'?' elite':''); el.style.left=pos[i]+'%';
+        let art='',sub=''; if(n.t==='battle'||n.t==='elite'){ art=n.ids.map(id=>enemySprite(id)).join(''); sub=`적 ${n.ids.length}`; } else if(n.t==='boss'){ art=sceneSprite('door',52); sub='용광로 지킴이'; } else if(n.t==='treasure'){ art=sceneSprite('pile',52); sub='아이템 1개'; } else if(n.t==='event'){ art=sceneSprite('sign',52); sub='무슨 일이?'; } else if(n.t==='camp'){ art=sceneSprite('campfire',52); sub='휴식·강화'; }
+        el.innerHTML=`<div class="art">${art}</div><div class="lbl">${NODE_KO[n.t]}</div><div class="sub">${sub}</div>`; el.onclick=()=>Screens.enter(n); A.appendChild(el); });
+    }
+    if(m) $('progress').innerHTML=m.steps.map((r,i)=>`<i class="${i<m.step?'done':i===m.step?'cur':''}" title="${r.map(n=>NODE_KO[n.t]).join(' / ')}"></i>`).join('')+`<span>${Run.floor<4?Run.floor+'층':'최하층'}</span>`;
+  },
+};
+
+/* ---------- 화면 흐름 ---------- */
+const Screens={
+  explore(){ Run.mode='explore'; Battle.active=false; Battle.busy=false; Battle.sel=null; UI.walking=false; closeSheet(); show('run'); UI.render(); },
+  enter(n){ if(UI.walking||Run.mode!=='explore') return; Run.map.step++; UI.walking=true; Battle.sel=null; if(Run.tut<1) Run.tut=1; UI.render(); setTimeout(()=>{ UI.walking=false; Screens.resolve(n); },750); },
+  resolve(n){
+    if(n.t==='battle'||n.t==='elite'||n.t==='boss'){ const ids=n.t==='boss'?['boss']:n.ids.slice(); Battle.lastNode=n.t; Battle.start(ids,{elite:n.t==='elite',boss:n.t==='boss'}); UI.banner(n.t==='boss'?'용광로 지킴이':(n.t==='elite'?'정예 전투':'전투')); }
+    else { UI.render(); if(n.t==='treasure') Screens.pickItem('보물 상자', 3, PASSIVES.concat(POOL[Run.floor]), true); else if(n.t==='event') Screens.event(); else if(n.t==='camp') Screens.camp(); }
+  },
+  victory(){ Run.stats.battles++; if(Battle.isBoss){ Screens.win(); return; } Run.mode='explore'; Battle.active=false; UI.render(); const elite=Battle.lastNode==='elite'; Screens.pickItem(elite?'정예 보상':'전투 보상', 3, elite?PASSIVES:POOL[Run.floor]); },
+  /* 아이템 3중 1 선택 시트 */
+  pickItem(title, n, pool, allowExpand){
+    const ids=[]; const p=pool.slice(); while(ids.length<n&&p.length){ const id=p.splice(rnd(p.length),1)[0]; if(!ids.includes(id)) ids.push(id); }
+    if(allowExpand) ids[ids.length-1]='__expand';
+    const render=(msg='')=>{ sheet(`<h2>${title}</h2><p class="muted">하나를 골라 가방에 넣습니다. 자리가 없으면 위 가방에서 아이템을 골라 "버리기"로 비우거나 그냥 넘어가세요.</p><div class="choices">${ids.map((id,i)=>`<button data-i="${i}">${id==='__expand'?'<span class="icard">'+sceneSprite('pile',36)+'<span><b>가방 확장</b><br><small>가방이 한 줄 넓어진다</small></span></span>':itemCard(id)}</button>`).join('')}</div>${msg?`<div class="c-bad" style="margin-top:6px">${msg}</div>`:''}<div class="row" style="margin-top:10px"><button onclick="Screens.explore()">넘어간다</button></div>`);
+      $('sheet-root').querySelectorAll('button[data-i]').forEach(b=>b.onclick=()=>{ const id=ids[+b.dataset.i]; if(id==='__expand'){ toast(expandBag(Run.bag)); Screens.explore(); return; } const it=mkItem(id); if(addItem(Run.bag,it)){ toast(`${idef(it).name} 획득`); Battle.sel=it; Screens.explore(); } else render('가방에 자리가 없습니다. 아이템을 버리거나 넘어가세요.'); }); };
+    render();
+  },
+  event(){
+    const evs=[
+      {t:'치유의 샘', txt:'맑은 샘물이 솟는다.', c:[{l:'마신다 (HP 10 회복)',f:()=>{Run.hp=Math.min(Run.maxHp,Run.hp+10);}},{l:'지나친다',f:()=>{}}]},
+      {t:'낡은 배낭', txt:'누군가 버리고 간 배낭이다. 가죽을 덧대면 더 넓어지겠다.', c:[{l:'가방을 넓힌다',f:()=>{toast(expandBag(Run.bag));}},{l:'지나친다',f:()=>{}}]},
+      {t:'수상한 상인', txt:'"물약 두 병에 체력 조금, 어때?"', c:[{l:'거래한다 (물약 2개, HP -5)',f:()=>{Run.hp=Math.max(1,Run.hp-5); for(let i=0;i<2;i++) addItem(Run.bag,mkItem('potion'));}},{l:'거절한다',f:()=>{}}]},
+    ];
+    const ev=pick(evs);
+    sheet(`<h2>${ev.t}</h2><div class="card"><p>${ev.txt}</p><div class="choices">${ev.c.map((c,i)=>`<button data-c="${i}"><b>${c.l}</b></button>`).join('')}</div></div>`);
+    $('sheet-root').querySelectorAll('button[data-c]').forEach(b=>b.onclick=()=>{ ev.c[+b.dataset.c].f(); Screens.explore(); });
+  },
+  camp(){
+    sheet(`<h2>캠프</h2><p class="muted">하나를 고르세요.</p><div class="choices">
+      <button data-c="rest"><b>휴식</b><small>HP 15 회복</small></button>
+      <button data-c="bag"><b>가방 확장</b><small>가방이 한 줄 넓어진다</small></button>
+      <button data-c="up"><b>강화</b><small>아이템 하나의 수치 +1 (영구)</small></button></div>`);
+    const next=()=>{ closeSheet(); if(Run.floor>=3){ Run.floor=4; Run.map={steps:[[{t:'boss'}]],step:0}; } else { Run.floor++; Run.map=genFloor(Run.floor); } Screens.explore(); };
+    $('sheet-root').querySelectorAll('button[data-c]').forEach(b=>b.onclick=()=>{ const c=b.dataset.c;
+      if(c==='rest'){ Run.hp=Math.min(Run.maxHp,Run.hp+15); next(); }
+      else if(c==='bag'){ toast(expandBag(Run.bag)); next(); }
+      else { const cands=Run.bag.items.filter(it=>idef(it).type!=='passive'); if(!cands.length){ toast('강화할 아이템이 없습니다'); return; }
+        sheet(`<h2>강화</h2><p class="muted">수치를 +1 올릴 아이템을 고르세요.</p><div class="choices">${cands.map((it,i)=>`<button data-u="${i}">${itemCard(it.id)}${it.up?`<small class="c-ok"> 현재 +${it.up}</small>`:''}</button>`).join('')}</div>`);
+        $('sheet-root').querySelectorAll('button[data-u]').forEach(x=>x.onclick=()=>{ const it=cands[+x.dataset.u]; it.up=(it.up||0)+1; toast(`${idef(it).name} +${it.up}`); next(); }); } });
+  },
+  stats(){ const s=Run.stats; return `<table class="tbl"><tr><td>도달</td><td>${Run.floor<4?Run.floor+'층':'최하층'}</td></tr><tr><td>전투</td><td>${s.battles}</td></tr><tr><td>총 턴</td><td>${s.turns}</td></tr><tr><td>아이템 사용</td><td>${s.uses}</td></tr><tr><td>가방 아이템</td><td>${Run.bag.items.length}개</td></tr></table>`; },
+  gameOver(){ Run.mode='over'; Battle.active=false; sheet(`<h2 style="color:var(--bad)">연금술사는 쓰러졌다</h2><div class="card">${Screens.stats()}</div><div class="row"><button class="primary" onclick="G.newRun()">다시 시작</button><button onclick="G.title()">타이틀로</button></div>`); },
+  win(){ Run.mode='over'; Battle.active=false; sheet(`<h2 style="color:var(--ok)">용광로 지킴이를 쓰러뜨렸다!</h2><p>${sprI('phoenix:p',24)} 불사조 깃털을 얻었다. 프로토타입은 여기까지입니다.</p><div class="card">${Screens.stats()}</div><div class="row"><button class="primary" onclick="G.newRun()">새 런</button><button onclick="G.title()">타이틀로</button></div>`); },
+  help(){ modal(`<h2>규칙</h2><div class="card" style="line-height:1.8"><b>1.</b> 아이템을 탭하면 설명이 보이고, 한 번 더 탭하면 씁니다. 공격은 적을 탭.<br><b>2.</b> 아이템마다 에너지(●)가 들고, 턴마다 에너지 3이 찹니다.<br><b>3.</b> 패시브 아이템은 <b>옆 칸</b>의 아이템을 강화합니다. 숫자가 금색이면 강화된 것.<br><b>4.</b> 전투 밖에서는 가방을 자유롭게 정리할 수 있습니다. 전투 중 옮기기는 에너지 1.<br><b>5.</b> 방어는 이번 턴 받는 피해를 줄이고 턴이 끝나면 사라집니다.<br><b>6.</b> 화로는 위·아래만, 숫돌은 좌·우만 강화합니다(화살표). 불과 냉기는 붙이면 서로 -1, 독 옆 물약은 -2. 같은 플라스크·단검끼리 붙이면 +1.<br><b>7.</b> 적의 다음 행동이 미리 보입니다. 강공은 방패로, 껍질은 산성으로, 저주는 봉인된 칸의 아이템을 옮겨서 대응하세요.</div><button class="primary" onclick="closeModal()">닫기</button>`); },
+};
+
+/* ---------- 컨트롤러 ---------- */
+const G={
+  title(){ closeModal(); closeSheet(); show('title'); },
+  newRun(){ closeModal(); Run.hp=30; Run.maxHp=30; Run.floor=1; Run.bag=startingBag(); Run.map=genFloor(1); Run.stats={turns:0,uses:0,battles:0}; Run.tut=0; Battle.active=false; Screens.explore(); },
+  endTurn(){ Battle.endTurn(); }, rotateSel(){ Battle.rotateSel(); }, discardSel(){ Battle.discardSel(); },
+  cancelSel(){ Battle.sel=null; UI.hover=null; UI.render(); },
+  giveUp(){ if(Run.mode==='over') return; modal(`<h2>런을 포기할까요?</h2><div class="row"><button class="primary" onclick="G.giveUpConfirm()">포기한다</button><button onclick="closeModal()">계속한다</button></div>`); },
+  giveUpConfirm(){ closeModal(); Battle.active=false; Run.hp=0; UI.render(); Screens.gameOver(); },
+  showHelp(){ Screens.help(); },
+};
+$('title-art').innerHTML=['torch:lit','oil:lit','dagger','shield','potion'].map(k=>sprI(k)).join('')+`<span class="spr hero">${spriteSVG(PLAYER_SPRITE,{key:'player'})}</span>`+['flask_cold','flask_acid','powder:dry','saltcrystal:s','phoenix:p'].map(k=>sprI(k)).join('');
+$('hero-spr').innerHTML=playerSprite(30);
+$('scene').querySelector('.wall').style.backgroundImage=tileURL(SCENE_SPRITES.wall);
+$('scene').querySelector('.floor').style.backgroundImage=tileURL(SCENE_SPRITES.floor);
+document.addEventListener('keydown',e=>{ if(!$('run').classList.contains('active')) return; if(e.key==='r'||e.key==='R') G.rotateSel(); if((e.key==='e'||e.key==='E')&&Battle.active) G.endTurn(); if(e.key==='Escape') G.cancelSel(); });
+</script>
+</body>
+</html>
